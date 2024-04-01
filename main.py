@@ -1,6 +1,7 @@
 import os
 import networkx as nx
 import torch.cuda
+from torch_geometric.data import Data
 
 from utils import *
 from args import *
@@ -17,20 +18,18 @@ if __name__ == '__main__':
     # load data and build networkx graphs
     print("Loading data...")
     edge_index1, edge_index2, x1, x2, anchor_links, test_pairs = load_data(f"datasets/{args.dataset}", args.ratio, args.use_attr)
-    G1, G2 = build_nxgraph(edge_index1, x1), build_nxgraph(edge_index2, x2)
+    G1, G2 = build_nx_graph(edge_index1, x1), build_nx_graph(edge_index2, x2)
 
-    # compute / load random walk with restart (RWR) scores for nodes
-    if not os.path.exists(f'datasets/rwr/rwr_emb_{args.dataset}_{args.ratio:.1f}.npz'):
-        rwr_score1 = rwr_score(G1, anchors=anchor_links[:, 0], desc='Computing RWR scores for G1')
-        rwr_score2 = rwr_score(G2, anchors=anchor_links[:, 1], desc='Computing RWR scores for G2')
-        if not os.path.exists('datasets/rwr'):
-            os.makedirs('datasets/rwr')
-        print(f"Saving RWR scores to datasets/rwr/rwr_emb_{args.dataset}_{args.ratio:.1f}.npz")
-        np.savez(f'datasets/rwr/rwr_emb_{args.dataset}_{args.ratio:.1f}.npz', rwr_score1=rwr_score1, rwr_score2=rwr_score2)
-    else:
-        print(f"Loading RWR scores from datasets/rwr/rwr_emb_{args.dataset}_{args.ratio:.1f}.npz")
-        data = np.load(f'datasets/rwr/rwr_emb_{args.dataset}_{args.ratio:.1f}.npz')
-        rwr_score1, rwr_score2 = data['rwr_score1'], data['rwr_score2']
+    # compute distance metric scores (e.g. random walk with restart (rwr))
+    dists_score1, dists_score2 = get_distance_matrix(G1, G2, anchor_links, args.dataset, args.ratio, args.distance)
 
     # device setting
     assert torch.cuda.is_available() or args.device == 'cpu', 'CUDA is not available'
+
+    # build PyG Data objects
+    G1_data = build_tg_graph(edge_index1, x1, anchor_links[:, 0], dists_score1)
+    G2_data = build_tg_graph(edge_index2, x2, anchor_links[:, 1], dists_score2)
+
+    G1_data.dists_max, G1_data.dists_argmax, G2_data.dists_max, G2_data.dists_argmax = (
+        preselect_anchor(G1_data, G2_data, random=True, device=args.device))
+    test_consistency(G1_data, G2_data)

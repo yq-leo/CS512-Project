@@ -4,6 +4,15 @@ import numpy as np
 import scipy
 
 
+class PGNNLayer(torch.nn.Module):
+    def __init__(self, in_dim, out_dim):
+        super(PGNNLayer, self).__init__()
+        self.lin = torch.nn.Linear(in_dim, out_dim)
+
+    def forward(self, x):
+        return self.lin(x)
+
+
 class RankingLossL1(torch.nn.Module):
     def __init__(self, k, gamma):
         super().__init__()

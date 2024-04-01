@@ -1,5 +1,7 @@
 import numpy as np
 import networkx as nx
+import torch
+from torch_geometric.data import Data
 
 
 def load_data(file_name, p, use_attr):
@@ -26,7 +28,7 @@ def load_data(file_name, p, use_attr):
     return edge_index1, edge_index2, x1, x2, anchor_links, test_pairs
 
 
-def build_nxgraph(edge_index, x=None):
+def build_nx_graph(edge_index, x=None):
     """
     Build a networkx graph from edge list and node attributes.
     :param edge_index: edge list of the graph
@@ -41,3 +43,21 @@ def build_nxgraph(edge_index, x=None):
     for edge in G.edges():
         G[edge[0]][edge[1]]['weight'] = 1
     return G
+
+
+def build_tg_graph(edge_index, x, anchor_nodes, dists):
+    """
+    Build a PyG Data object from edge list and node attributes.
+    :param edge_index: edge list of the graph
+    :param x: node attributes of the graph
+    :param anchor_nodes: anchor nodes
+    :param dists: distance metric scores (num nodes x num anchor nodes)
+    :return: a PyG Data object
+    """
+
+    edge_index_tensor = torch.tensor(edge_index.T, dtype=torch.long)
+    x_tensor = torch.tensor(x, dtype=torch.float) if x is not None else None
+    data = Data(x=x_tensor, edge_index=edge_index_tensor)
+    data.anchor_nodes = anchor_nodes
+    data.dists = torch.from_numpy(dists).float()
+    return data
