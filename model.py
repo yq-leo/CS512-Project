@@ -1,16 +1,112 @@
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import scipy
 
 
 class PGNNLayer(torch.nn.Module):
-    def __init__(self, in_dim, out_dim):
+    def __init__(self, input_dim, output_dim, dist_trainable=False, mcf_type='default', agg_type='mean', use_hidden=False):
+        """
+        One PGNN Layer
+        :param input_dim: input feature dimension
+        :param output_dim: output feature dimension
+        :param dist_trainable: whether to use trainable distance metric scores
+        :param mcf_type: type of message computation function (e.g. default, concat, mean, etc.)
+        :param agg_type: type of message aggregation function (e.g. mean, sum, max, etc.)
+        :param use_hidden: whether to use SLP after message computation function F
+        """
         super(PGNNLayer, self).__init__()
-        self.lin = torch.nn.Linear(in_dim, out_dim)
+
+        self.input_dim = input_dim
+        self.hidden_dim = input_dim if mcf_type is not 'concat' else input_dim * 2
+        self.output_dim = output_dim
+        self.dist_trainable = dist_trainable
+        self.mcf_type = mcf_type
+        self.agg_type = agg_type
+        self.use_hidden = use_hidden
+
+        if self.dist_trainable:
+            self.dist_compute = Nonlinear(1, output_dim, 1)
+
+        self.linear_hidden = nn.Linear(self.hidden_dim, self.output_dim) if self.use_hidden else None
+        self.linear_out_position = nn.Linear(self.output_dim, 1)
+        self.act = nn.ReLU()
+
+    def forward(self, G1_data, G2_data):
+        x1, x2 = G1_data.x, G2_data.x
+        dists_argmax_1, dists_argmax_2 = G1_data.dists_argmax, G2_data.dists_argmax
+        dists_max_1, dists_max_2 = G1_data.dists_max, G2_data.dists_max
+
+        anchor_features_1 = x1[dists_argmax_1, :]
+        anchor_features_2 = x2[dists_argmax_2, :]
+        self_features_1 = x1.unsqueeze(1).repeat(1, dists_max_1.shape[1], 1)
+        self_features_2 = x2.unsqueeze(1).repeat(1, dists_max_2.shape[1], 1)
+
+        messages_1 = self.mcf(self_features_1, anchor_features_1, dists_max_1)
+        messages_2 = self.mcf(self_features_2, anchor_features_2, dists_max_1)
+
+        if self.use_hidden:
+            assert self.linear_hidden is not None, 'Hidden layer is not defined'
+            messages_1 = self.linear_hidden(messages_1).squeeze()
+            messages_1 = self.act(messages_1)
+            messages_2 = self.linear_hidden(messages_2).squeeze()
+            messages_2 = self.act(messages_2)
+
+        out_position_1 = self.linear_out_position(messages_1).squeeze(-1)  # zv (output)
+        out_structure_1 = self.agg(messages_1)  # hv (feed to the next layer)
+        out_position_2 = self.linear_out_position(messages_2).squeeze(-1)
+        out_structure_2 = self.agg(messages_2)
+
+        return out_position_1, out_structure_1, out_position_2, out_structure_2
+
+    def mcf(self, node_feat, anchor_feat, distances):
+        """
+        Message Computation Function F
+        :param node_feat: node features (hv)
+        :param anchor_feat: anchorset features (hu)
+        :param distances: distances metric scores (s(v, u))
+        :return:
+            messages: messages F(v, u, hv, hu)
+        """
+        if self.mcf_type == 'default':
+            return distances.unsqueeze(-1) * anchor_feat
+        elif self.mcf_type == 'concat':
+            return distances.unsqueeze(-1) * torch.cat((node_feat, anchor_feat), dim=-1)
+        # TODO: Add more types of MCF here (e.g., mean, min, max, sum, etc.)
+
+    def agg(self, messages):
+        """
+        Message Aggregation Function AGG
+        :param messages: message matrix Mv
+        :return:
+            out: aggregated messages
+        """
+        if self.agg_type == 'mean':
+            return torch.mean(messages, dim=1)
+        # TODO: Add more types of aggregation functions here (e.g., sum, max, etc.)
+
+
+class Nonlinear(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(Nonlinear, self).__init__()
+
+        self.linear1 = nn.Linear(input_dim, hidden_dim)
+        self.linear2 = nn.Linear(hidden_dim, output_dim)
+
+        self.act = nn.ReLU()
+
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                m.weight.data = nn.init.xavier_uniform_(m.weight.data, gain=nn.init.calculate_gain('relu'))
+                if m.bias is not None:
+                    m.bias.data = nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, x):
-        return self.lin(x)
+        x = self.linear1(x)
+        x = self.act(x)
+        x = self.linear2(x)
+        return x
 
 
 class RankingLossL1(torch.nn.Module):

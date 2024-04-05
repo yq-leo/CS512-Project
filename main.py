@@ -31,5 +31,4 @@ if __name__ == '__main__':
     G2_data = build_tg_graph(edge_index2, x2, anchor_links[:, 1], dists_score2)
 
     G1_data.dists_max, G1_data.dists_argmax, G2_data.dists_max, G2_data.dists_argmax = (
-        preselect_anchor(G1_data, G2_data, random=True, device=args.device))
-    test_consistency(G1_data, G2_data)
+        preselect_anchor(G1_data, G2_data, random=False, device=args.device))
