@@ -46,7 +46,7 @@ python main.py --dataset={dataset}
 
 5. After running the application, you can visualize the training runs using TensorBoard. Execute the following command, replacing {dataset} with your dataset's name:
 ```sh
-tensorboard --logdir logs/{dataset}
+tensorboard --logdir logs/{dataset}_result
 ```
 
 
