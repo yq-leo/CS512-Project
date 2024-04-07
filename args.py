@@ -3,18 +3,43 @@ from argparse import ArgumentParser
 
 def make_args():
     parser = ArgumentParser()
-    parser.add_argument('--dataset', dest='dataset', type=str, default='noisy-cora1-cora2',
+    parser.add_argument('--dataset', dest='dataset', type=str, default='ACM-DBLP',
                         choices=['noisy-cora1-cora2', 'ACM-DBLP', 'foursquare-twitter'],
                         help='dataset name: noisy-cora1-cora2; ACM-DBLP; foursquare-twitter')
     parser.add_argument('--ratio', dest='ratio', type=float, default=0.2,
                         choices=[0.2],
                         help='training ratio: 0.1; 0.2')
-    parser.add_argument('--use_attr', dest='use_attr', default=True, action='store_true',
+    parser.add_argument('--use_attr', dest='use_attr', default=False, action='store_true',
                         help='use input node attributes')
     parser.add_argument('--distance', dest='distance', type=str, default='rwr',
                         choices=['rwr'],
                         help='distance metric: rwr')
     parser.add_argument('--gpu', dest='device', action='store_const', const='cuda:0', default='cpu',
                         help='use GPU')
+    parser.add_argument('--lr', dest='lr', type=float, default=1e-4, help='learning_rate')
+    parser.add_argument('--epochs', dest='epochs', type=int, default=250, help='number of epochs')
+    parser.add_argument('--neg', dest='neg_sample_size', type=int, default=500, help='negative sample size')
+
+    parser.add_argument('--feat_dim', dest='feat_dim', type=int, default=128, help='feature dimension')
+    parser.add_argument('--hidden_dim', dest='hidden_dim', type=int, default=128, help='hidden dimension')
+    parser.add_argument('--out_dim', dest='out_dim', type=int, default=128, help='output dimension')
+    parser.add_argument('--feature_pre', dest='feature_pre', default=False, action='store_true',
+                        help='use feature pre-processing')
+    parser.add_argument('--num_layers', dest='num_layers', type=int, default=1, help='number of layers')
+    parser.add_argument('--use_dropout', dest='use_dropout', default=False, action='store_true',
+                        help='use dropout')
+    parser.add_argument('--dist_trainable', dest='dist_trainable', default=False, action='store_true',
+                        help='train distance metric')
+    parser.add_argument('--use_hidden', dest='use_hidden', default=False, action='store_true',
+                        help='use hidden layer')
+    parser.add_argument('--mcf_type', dest='mcf_type', type=str, default='anchor',
+                        choices=['anchor', 'concat', 'sum', 'mean', 'max', 'min'], help='message computation function type')
+    parser.add_argument('--agg_type', dest='agg_type', type=str, default='mean',
+                        choices=['mean', 'sum', 'max', 'min'], help='aggregation function type')
+
+    parser.add_argument('--margin', dest='margin', type=float, default=10, help='margin parameter of ranking loss')
+    parser.add_argument('--random', dest='random', default=False, action='store_true',
+                        help='use random anchors')
+    parser.add_argument('--c', dest='c', type=int, default=1, help='c parameter of anchor dimension')
     args = parser.parse_args()
     return args

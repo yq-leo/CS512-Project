@@ -41,12 +41,13 @@ def get_dist_max(anchorsets, dist, device):
     return dist_max, dist_argmax
 
 
-def preselect_anchor(G1_data, G2_data, random=False, device='cpu'):
+def preselect_anchor(G1_data, G2_data, random=False, c=1, device='cpu'):
     """
     Preselect anchor-sets
     :param G1_data: PyG Data object for graph 1
     :param G2_data: PyG Data object for graph 2
     :param random: whether to sample random anchor-sets
+    :param c: hyperparameter for the number of anchor-sets (k=clog^2(n))
     :param device: device
     :return:
         dists_max: max distance for each anchor-set (num of nodes x num of anchor-sets)
@@ -56,15 +57,15 @@ def preselect_anchor(G1_data, G2_data, random=False, device='cpu'):
 
     num_anchor_nodes = G1_data.anchor_nodes.shape[0]
     if random:
-        anchorsets = get_random_anchorsets(num_anchor_nodes, c=1)
+        anchorsets = get_random_anchorsets(num_anchor_nodes, c=c)
         G1_dists_max, G1_dists_argmax = get_dist_max(anchorsets, G1_data.dists, device)
         G2_dists_max, G2_dists_argmax = get_dist_max(anchorsets, G2_data.dists, device)
     else:
-        G1_dists_max, G1_dists_argmax = G1_data.dists, torch.arange(num_anchor_nodes).repeat(G1_data.num_nodes, 1)
-        G2_dists_max, G2_dists_argmax = G2_data.dists, torch.arange(num_anchor_nodes).repeat(G2_data.num_nodes, 1)
+        G1_dists_max, G1_dists_argmax = G1_data.dists, torch.arange(num_anchor_nodes).repeat(G1_data.num_nodes, 1).to(device)
+        G2_dists_max, G2_dists_argmax = G2_data.dists, torch.arange(num_anchor_nodes).repeat(G2_data.num_nodes, 1).to(device)
 
-    return (G1_dists_max, G1_data.anchor_nodes[G1_dists_argmax],
-            G2_dists_max, G2_data.anchor_nodes[G2_dists_argmax])
+    return (G1_dists_max, G1_data.anchor_nodes[G1_dists_argmax].to(device),
+            G2_dists_max, G2_data.anchor_nodes[G2_dists_argmax].to(device))
 
 
 def test_consistency(G1_data, G2_data):

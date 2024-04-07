@@ -6,20 +6,24 @@ import scipy
 
 
 class PGNNLayer(torch.nn.Module):
-    def __init__(self, input_dim, output_dim, dist_trainable=False, mcf_type='default', agg_type='mean', use_hidden=False):
+    def __init__(self, input_dim, anchor_dim, output_dim, dist_trainable=False, use_hidden=False,
+                 mcf_type='default', agg_type='mean', **kwargs):
         """
         One PGNN Layer
         :param input_dim: input feature dimension
+        :param anchor_dim: num of anchor nodes
         :param output_dim: output feature dimension
         :param dist_trainable: whether to use trainable distance metric scores
         :param mcf_type: type of message computation function (e.g. default, concat, mean, etc.)
         :param agg_type: type of message aggregation function (e.g. mean, sum, max, etc.)
         :param use_hidden: whether to use SLP after message computation function F
+        :param kwargs: optional arguments
         """
         super(PGNNLayer, self).__init__()
 
         self.input_dim = input_dim
-        self.hidden_dim = input_dim if mcf_type is not 'concat' else input_dim * 2
+        self.anchor_dim = anchor_dim
+        self.message_dim = input_dim if mcf_type != 'concat' else input_dim * 2
         self.output_dim = output_dim
         self.dist_trainable = dist_trainable
         self.mcf_type = mcf_type
@@ -29,22 +33,20 @@ class PGNNLayer(torch.nn.Module):
         if self.dist_trainable:
             self.dist_compute = Nonlinear(1, output_dim, 1)
 
-        self.linear_hidden = nn.Linear(self.hidden_dim, self.output_dim) if self.use_hidden else None
-        self.linear_out_position = nn.Linear(self.output_dim, 1)
+        self.linear_hidden = nn.Linear(self.message_dim, self.input_dim) if self.use_hidden else None
+        self.linear_final = nn.Linear(self.anchor_dim, self.output_dim)
         self.act = nn.ReLU()
 
-    def forward(self, G1_data, G2_data):
-        x1, x2 = G1_data.x, G2_data.x
-        dists_argmax_1, dists_argmax_2 = G1_data.dists_argmax, G2_data.dists_argmax
-        dists_max_1, dists_max_2 = G1_data.dists_max, G2_data.dists_max
-
+    def forward(self, x1, x2, dists_max_1, dists_max_2, dists_argmax_1, dists_argmax_2):
         anchor_features_1 = x1[dists_argmax_1, :]
-        anchor_features_2 = x2[dists_argmax_2, :]
         self_features_1 = x1.unsqueeze(1).repeat(1, dists_max_1.shape[1], 1)
-        self_features_2 = x2.unsqueeze(1).repeat(1, dists_max_2.shape[1], 1)
-
         messages_1 = self.mcf(self_features_1, anchor_features_1, dists_max_1)
+        del anchor_features_1, self_features_1
+
+        anchor_features_2 = x2[dists_argmax_2, :]
+        self_features_2 = x2.unsqueeze(1).repeat(1, dists_max_2.shape[1], 1)
         messages_2 = self.mcf(self_features_2, anchor_features_2, dists_max_2)
+        del anchor_features_2, self_features_2
 
         if self.use_hidden:
             assert self.linear_hidden is not None, 'Hidden layer is not defined'
@@ -53,12 +55,12 @@ class PGNNLayer(torch.nn.Module):
             messages_2 = self.linear_hidden(messages_2).squeeze()
             messages_2 = self.act(messages_2)
 
-        out_position_1 = self.linear_out_position(messages_1).squeeze(-1)  # zv (output)
-        out_structure_1 = self.agg(messages_1)  # hv (feed to the next layer)
-        out_position_2 = self.linear_out_position(messages_2).squeeze(-1)
-        out_structure_2 = self.agg(messages_2)
+        out1_position = self.linear_final(torch.sum(messages_1, dim=2))  # zv (output)
+        out1_structure = self.agg(messages_1)  # hv (feed to the next layer)
+        out2_position = self.linear_final(torch.sum(messages_2, dim=2))
+        out2_structure = self.agg(messages_2)
 
-        return out_position_1, out_structure_1, out_position_2, out_structure_2
+        return out1_position, out1_structure, out2_position, out2_structure
 
     def mcf(self, node_feat, anchor_feat, distances):
         """
@@ -69,11 +71,20 @@ class PGNNLayer(torch.nn.Module):
         :return:
             messages: messages F(v, u, hv, hu)
         """
-        if self.mcf_type == 'default':
+        assert self.mcf_type in ['anchor', 'concat', 'sum', 'mean', 'max', 'min'], 'Invalid MCF type'
+
+        if self.mcf_type == 'anchor':
             return distances.unsqueeze(-1) * anchor_feat
         elif self.mcf_type == 'concat':
             return distances.unsqueeze(-1) * torch.cat((node_feat, anchor_feat), dim=-1)
-        # TODO: Add more types of MCF here (e.g., mean, min, max, sum, etc.)
+        elif self.mcf_type == 'sum':
+            return distances.unsqueeze(-1) * torch.sum(torch.stack((node_feat, anchor_feat), dim=0), dim=0)
+        elif self.mcf_type == 'mean':
+            return distances.unsqueeze(-1) * torch.mean(torch.stack((node_feat, anchor_feat), dim=0), dim=0)
+        elif self.mcf_type == 'max':
+            return distances.unsqueeze(-1) * torch.max(torch.stack((node_feat, anchor_feat), dim=0), dim=0)[0]
+        elif self.mcf_type == 'min':
+            return distances.unsqueeze(-1) * torch.min(torch.stack((node_feat, anchor_feat), dim=0), dim=0)[0]
 
     def agg(self, messages):
         """
@@ -82,9 +93,16 @@ class PGNNLayer(torch.nn.Module):
         :return:
             out: aggregated messages
         """
+        assert self.agg_type in ['mean', 'sum', 'max', 'min'], 'Invalid AGG type'
+
         if self.agg_type == 'mean':
             return torch.mean(messages, dim=1)
-        # TODO: Add more types of aggregation functions here (e.g., sum, max, etc.)
+        elif self.agg_type == 'sum':
+            return torch.sum(messages, dim=1)
+        elif self.agg_type == 'max':
+            return torch.max(messages, dim=1)[0]
+        elif self.agg_type == 'min':
+            return torch.min(messages, dim=1)[0]
 
 
 class Nonlinear(nn.Module):
@@ -109,16 +127,82 @@ class Nonlinear(nn.Module):
         return x
 
 
+class PGNN(torch.nn.Module):
+    def __init__(self, input_dim, feature_dim, anchor_dim, hidden_dim, output_dim,
+                 feature_pre=False, num_layers=2, use_dropout=False, **kwargs):
+        super(PGNN, self).__init__()
+        self.feature_pre = feature_pre
+        self.num_layers = num_layers
+        self.use_dropout = use_dropout
+        if num_layers == 1:
+            hidden_dim = output_dim
+
+        if feature_pre:
+            self.linear_pre = nn.Linear(input_dim, feature_dim)
+            self.conv_first = PGNNLayer(feature_dim, anchor_dim, hidden_dim, **kwargs)
+        else:
+            self.conv_first = PGNNLayer(input_dim, anchor_dim, hidden_dim, **kwargs)
+
+        if num_layers > 1:
+            self.conv_hidden = nn.ModuleList([PGNNLayer(hidden_dim, anchor_dim, hidden_dim, **kwargs)] * (num_layers - 2))
+            self.conv_out = PGNNLayer(hidden_dim, anchor_dim, output_dim, **kwargs)
+
+    def forward(self, G1_data, G2_data):
+        x1, x2 = G1_data.x, G2_data.x
+        dists_argmax_1, dists_argmax_2 = G1_data.dists_argmax, G2_data.dists_argmax
+        dists_max_1, dists_max_2 = G1_data.dists_max, G2_data.dists_max
+
+        if self.feature_pre:
+            x1 = self.linear_pre(x1)
+            x2 = self.linear_pre(x2)
+        x1_position, x1, x2_position, x2 = self.conv_first(x1, x2, dists_max_1, dists_max_2, dists_argmax_1, dists_argmax_2)
+        # x1, x2 = F.relu(x1), F.relu(x2)  # Note: optional!
+        if self.num_layers == 1:
+            x1_position = F.normalize(x1_position, p=1, dim=-1)
+            x2_position = F.normalize(x2_position, p=1, dim=-1)
+            return x1_position, x2_position
+
+        if self.use_dropout:
+            x1 = F.dropout(x1, training=self.training)
+            x2 = F.dropout(x2, training=self.training)
+
+        for i in range(self.num_layers-2):
+            _, x1, _, x2 = self.conv_hidden[i](x1, x2, dists_max_1, dists_max_2, dists_argmax_1, dists_argmax_2)
+            # x1, x2 = F.relu(x1), F.relu(x2)  # Note: optional!
+            if self.use_dropout:
+                x1 = F.dropout(x1, training=self.training)
+                x2 = F.dropout(x2, training=self.training)
+
+        x1_position, x1, x2_position, x2 = self.conv_out(x1, x2, dists_max_1, dists_max_2, dists_argmax_1, dists_argmax_2)
+        x1_position = F.normalize(x1_position, p=1, dim=-1)
+        x2_position = F.normalize(x2_position, p=1, dim=-1)
+        return x1_position, x2_position
+
+
+class BRIGHT_U(torch.nn.Module):
+    def __init__(self, rwr_dim, dim):
+        super(BRIGHT_U, self).__init__()
+        self.lin1 = torch.nn.Linear(rwr_dim, dim)
+
+    def forward(self, G1_data, G2_data):
+        rwr1_emd, rwr2_emd = G1_data.dists, G2_data.dists
+        pos_emd1 = self.lin1(rwr1_emd)
+        pos_emd2 = self.lin1(rwr2_emd)
+        pos_emd1 = F.normalize(pos_emd1, p=1, dim=1)
+        pos_emd2 = F.normalize(pos_emd2, p=1, dim=1)
+        return pos_emd1, pos_emd2
+
+
 class RankingLossL1(torch.nn.Module):
-    def __init__(self, k, gamma):
+    def __init__(self, k, margin):
         """
         Marginal Ranking Loss with L1 distance
         :param k: number of negative samples
-        :param gamma: margin
+        :param margin: margin
         """
         super().__init__()
         self.k = k
-        self.gamma = gamma
+        self.margin = margin
 
     def neg_sampling(self, out1, out2, anchor1, anchor2):
         """
@@ -159,7 +243,7 @@ class RankingLossL1(torch.nn.Module):
         neg_embeddings_2 = out1[neg_samples_2, :]
 
         A = torch.sum(torch.abs(anchor_embeddings_1 - anchor_embeddings_2), 1)
-        D = A + self.gamma
+        D = A + self.margin
         B1 = -torch.sum(torch.abs(anchor_embeddings_1.unsqueeze(1) - neg_embeddings_1), 2)
         L1 = torch.sum(F.relu(D.unsqueeze(-1) + B1))
         B2 = -torch.sum(torch.abs(anchor_embeddings_2.unsqueeze(1) - neg_embeddings_2), 2)

@@ -45,9 +45,10 @@ def build_nx_graph(edge_index, x=None):
     return G
 
 
-def build_tg_graph(edge_index, x, anchor_nodes, dists):
+def build_tg_graph(num_nodes, edge_index, x, anchor_nodes, dists):
     """
     Build a PyG Data object from edge list and node attributes.
+    :param num_nodes: number of nodes in the graph
     :param edge_index: edge list of the graph
     :param x: node attributes of the graph
     :param anchor_nodes: anchor nodes
@@ -56,8 +57,8 @@ def build_tg_graph(edge_index, x, anchor_nodes, dists):
     """
 
     edge_index_tensor = torch.tensor(edge_index.T, dtype=torch.long)
-    x_tensor = torch.tensor(x, dtype=torch.float) if x is not None else None
+    x_tensor = torch.tensor(x, dtype=torch.float) if x is not None else torch.ones((num_nodes, 1), dtype=torch.float)
     data = Data(x=x_tensor, edge_index=edge_index_tensor)
-    data.anchor_nodes = anchor_nodes
+    data.anchor_nodes = torch.from_numpy(anchor_nodes).long()
     data.dists = torch.from_numpy(dists).float()
     return data
