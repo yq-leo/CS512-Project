@@ -1,10 +1,6 @@
-dgl
-matplotlib
 networkx
 numpy
-pandas
 pydantic
-scikit-learn
 scipy
 tensorboard
 torch
