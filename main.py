@@ -10,7 +10,7 @@ if __name__ == '__main__':
     # check compatibility between dataset and use_attr
     if args.dataset == 'noisy-cora1-cora2':
         assert args.use_attr is True, 'noisy-cora1-cora2 requires using node attributes'
-    elif args.dataset == 'fourquare-twitter':
+    elif args.dataset == 'foursquare-twitter':
         assert args.use_attr is False, 'foursquare-twitter does not have node attributes'
 
     # load data and build networkx graphs
