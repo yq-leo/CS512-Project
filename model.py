@@ -37,7 +37,17 @@ class PGNNLayer(torch.nn.Module):
         self.linear_final = nn.Linear(self.anchor_dim, self.output_dim)
         self.act = nn.ReLU()
 
+        # for m in self.modules():
+        #     if isinstance(m, nn.Linear):
+        #         m.weight.data = nn.init.xavier_uniform_(m.weight.data, gain=nn.init.calculate_gain('relu'))
+        #         if m.bias is not None:
+        #             m.bias.data = nn.init.constant_(m.bias.data, 0.0)
+
     def forward(self, x1, x2, dists_max_1, dists_max_2, dists_argmax_1, dists_argmax_2):
+        if self.dist_trainable:
+            dists_max_1 = self.dist_compute(dists_max_1.unsqueeze(-1)).squeeze()
+            dists_max_2 = self.dist_compute(dists_max_2.unsqueeze(-1)).squeeze()
+
         anchor_features_1 = x1[dists_argmax_1, :]
         self_features_1 = x1.unsqueeze(1).repeat(1, dists_max_1.shape[1], 1)
         messages_1 = self.mcf(self_features_1, anchor_features_1, dists_max_1)
@@ -114,11 +124,11 @@ class Nonlinear(nn.Module):
 
         self.act = nn.ReLU()
 
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                m.weight.data = nn.init.xavier_uniform_(m.weight.data, gain=nn.init.calculate_gain('relu'))
-                if m.bias is not None:
-                    m.bias.data = nn.init.constant_(m.bias.data, 0.0)
+        # for m in self.modules():
+        #     if isinstance(m, nn.Linear):
+        #         m.weight.data = nn.init.xavier_uniform_(m.weight.data, gain=nn.init.calculate_gain('relu'))
+        #         if m.bias is not None:
+        #             m.bias.data = nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, x):
         x = self.linear1(x)
@@ -156,7 +166,7 @@ class PGNN(torch.nn.Module):
             x1 = self.linear_pre(x1)
             x2 = self.linear_pre(x2)
         x1_position, x1, x2_position, x2 = self.conv_first(x1, x2, dists_max_1, dists_max_2, dists_argmax_1, dists_argmax_2)
-        # x1, x2 = F.relu(x1), F.relu(x2)  # Note: optional!
+        x1, x2 = F.relu(x1), F.relu(x2)  # Note: optional!
         if self.num_layers == 1:
             x1_position = F.normalize(x1_position, p=1, dim=-1)
             x2_position = F.normalize(x2_position, p=1, dim=-1)
@@ -168,7 +178,7 @@ class PGNN(torch.nn.Module):
 
         for i in range(self.num_layers-2):
             _, x1, _, x2 = self.conv_hidden[i](x1, x2, dists_max_1, dists_max_2, dists_argmax_1, dists_argmax_2)
-            # x1, x2 = F.relu(x1), F.relu(x2)  # Note: optional!
+            x1, x2 = F.relu(x1), F.relu(x2)  # Note: optional!
             if self.use_dropout:
                 x1 = F.dropout(x1, training=self.training)
                 x2 = F.dropout(x2, training=self.training)

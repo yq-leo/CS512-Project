@@ -1,3 +1,4 @@
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.tensorboard import SummaryWriter
 
 from utils import *
@@ -51,18 +52,19 @@ if __name__ == '__main__':
     # model = BRIGHT_U(anchor_dim, out_dim).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     criterion = RankingLossL1(args.neg_sample_size, args.margin).to(device)
+    scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     # train model
     if not os.path.exists('logs'):
         os.makedirs('logs')
     writer = SummaryWriter(log_path(args.dataset))
 
-    G1_data.dists_max, G1_data.dists_argmax, G2_data.dists_max, G2_data.dists_argmax = (
-        preselect_anchor(G1_data, G2_data, random=args.random, c=args.c, device=device))
     for epoch in range(args.epochs):
         # training
         model.train()
         optimizer.zero_grad()
+        G1_data.dists_max, G1_data.dists_argmax, G2_data.dists_max, G2_data.dists_argmax = (
+            preselect_anchor(G1_data, G2_data, random=args.random, c=args.c, device=device))
         out1, out2 = model(G1_data, G2_data)
         loss = criterion(out1, out2, G1_data.anchor_nodes, G2_data.anchor_nodes)
         loss.backward()
@@ -79,5 +81,7 @@ if __name__ == '__main__':
         writer.add_scalar('MRR', mrr, epoch)
         for key, value in hits.items():
             writer.add_scalar(f'Hits@{key}', value, epoch)
+
+        scheduler.step()
 
     writer.close()
