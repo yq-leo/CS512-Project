@@ -74,7 +74,9 @@ if __name__ == '__main__':
         # testing
         out1_np = out1.detach().cpu().numpy()
         out2_np = out2.detach().cpu().numpy()
-        hits, mrr = compute_metrics(out1_np, out2_np, test_pairs, dist_type=args.dist_type)
+        distances1 = compute_distance_matrix(out1_np[test_pairs[:, 0]], out2_np, dist_type=args.dist_type)
+        distances2 = compute_distance_matrix(out2_np[test_pairs[:, 1]], out1_np, dist_type=args.dist_type)
+        hits, mrr = compute_metrics(distances1, distances2, test_pairs)
         print(f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
 
         writer.add_scalar('Loss', loss.item(), epoch)
