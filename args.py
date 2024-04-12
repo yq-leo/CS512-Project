@@ -16,7 +16,7 @@ def make_args():
                         help='distance metric: rwr')
     parser.add_argument('--gpu', dest='device', action='store_const', const='cuda:0', default='cpu',
                         help='use GPU')
-    parser.add_argument('--lr', dest='lr', type=float, default=1e-4, help='learning_rate')
+    parser.add_argument('--lr', dest='lr', type=float, default=1e-3, help='learning_rate')
     parser.add_argument('--epochs', dest='epochs', type=int, default=250, help='number of epochs')
     parser.add_argument('--neg', dest='neg_sample_size', type=int, default=500, help='negative sample size')
 
