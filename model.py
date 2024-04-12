@@ -4,6 +4,8 @@ import torch.nn.functional as F
 import numpy as np
 import scipy
 
+from utils import compute_distance_matrix
+
 
 class PGNNLayer(torch.nn.Module):
     def __init__(self, input_dim, anchor_dim, output_dim, dist_trainable=False, use_hidden=False,
@@ -204,15 +206,17 @@ class BRIGHT_U(torch.nn.Module):
 
 
 class RankingLossL1(torch.nn.Module):
-    def __init__(self, k, margin):
+    def __init__(self, k, margin, dist_type='l1'):
         """
         Marginal Ranking Loss with L1 distance
         :param k: number of negative samples
         :param margin: margin
+        :param dist_type: distance metric type
         """
         super().__init__()
         self.k = k
         self.margin = margin
+        self.dist_type = dist_type
 
     def neg_sampling(self, out1, out2, anchor1, anchor2):
         """
@@ -229,11 +233,11 @@ class RankingLossL1(torch.nn.Module):
         anchor_embeddings_1 = out1[anchor1]
         anchor_embeddings_2 = out2[anchor2]
 
-        distances_1 = scipy.spatial.distance.cdist(anchor_embeddings_1, out2, metric='cityblock')
+        distances_1 = compute_distance_matrix(anchor_embeddings_1, out2, self.dist_type)
         ranks_1 = np.argsort(distances_1, axis=1)
         neg_samples_1 = ranks_1[:, :self.k]
 
-        distances_2 = scipy.spatial.distance.cdist(anchor_embeddings_2, out1, metric='cityblock')
+        distances_2 = compute_distance_matrix(anchor_embeddings_2, out1, self.dist_type)
         ranks_2 = np.argsort(distances_2, axis=1)
         neg_samples_2 = ranks_2[:, :self.k]
 
@@ -252,11 +256,22 @@ class RankingLossL1(torch.nn.Module):
         neg_embeddings_1 = out2[neg_samples_1, :]
         neg_embeddings_2 = out1[neg_samples_2, :]
 
-        A = torch.sum(torch.abs(anchor_embeddings_1 - anchor_embeddings_2), 1)
+        A = self.compute_dist(anchor_embeddings_1, anchor_embeddings_2)
         D = A + self.margin
-        B1 = -torch.sum(torch.abs(anchor_embeddings_1.unsqueeze(1) - neg_embeddings_1), 2)
-        L1 = torch.sum(F.relu(D.unsqueeze(-1) + B1))
-        B2 = -torch.sum(torch.abs(anchor_embeddings_2.unsqueeze(1) - neg_embeddings_2), 2)
-        L2 = torch.sum(F.relu(D.unsqueeze(-1) + B2))
+        B1 = -self.compute_dist(anchor_embeddings_1.unsqueeze(1).repeat(1, self.k, 1).view(-1, anchor_embeddings_1.shape[-1]),
+                                neg_embeddings_1.view(-1, neg_embeddings_1.shape[-1]))
+        L1 = torch.sum(F.relu(D.unsqueeze(-1) + B1.view(-1, self.k)))
+        B2 = -self.compute_dist(anchor_embeddings_2.unsqueeze(1).repeat(1, self.k, 1).view(-1, anchor_embeddings_2.shape[-1]),
+                                neg_embeddings_2.view(-1, neg_embeddings_2.shape[-1]))
+        L2 = torch.sum(F.relu(D.unsqueeze(-1) + B2.view(-1, self.k)))
 
         return (L1 + L2) / (anchor1.shape[0] * self.k)
+
+    def compute_dist(self, embedding1, embedding2):
+        assert self.dist_type in ['l1', 'cosine'], 'Similarity function not supported'
+
+        if self.dist_type == 'l1':
+            return torch.sum(torch.abs(embedding1 - embedding2), 1)
+        elif self.dist_type == 'cosine':
+            return 1 - torch.sum(embedding1 * embedding2, 1) / (torch.norm(embedding1, p=1, dim=1) * torch.norm(embedding2, p=1, dim=1))
+

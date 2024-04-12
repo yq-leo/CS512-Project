@@ -51,7 +51,7 @@ if __name__ == '__main__':
     model = PGNN(**model_settings).to(device)
     # model = BRIGHT_U(anchor_dim, out_dim).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    criterion = RankingLossL1(args.neg_sample_size, args.margin).to(device)
+    criterion = RankingLossL1(args.neg_sample_size, args.margin, args.dist_type).to(device)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     # train model
@@ -74,7 +74,7 @@ if __name__ == '__main__':
         # testing
         out1_np = out1.detach().cpu().numpy()
         out2_np = out2.detach().cpu().numpy()
-        hits, mrr = compute_metrics(out1_np, out2_np, test_pairs)
+        hits, mrr = compute_metrics(out1_np, out2_np, test_pairs, dist_type=args.dist_type)
         print(f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
 
         writer.add_scalar('Loss', loss.item(), epoch)

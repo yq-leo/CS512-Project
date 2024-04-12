@@ -4,8 +4,8 @@ from argparse import ArgumentParser
 def make_args():
     parser = ArgumentParser()
     parser.add_argument('--dataset', dest='dataset', type=str, default='ACM-DBLP',
-                        choices=['noisy-cora1-cora2', 'ACM-DBLP', 'foursquare-twitter'],
-                        help='dataset name: noisy-cora1-cora2; ACM-DBLP; foursquare-twitter')
+                        choices=['noisy-cora1-cora2', 'ACM-DBLP', 'foursquare-twitter', 'phone-email'],
+                        help='dataset name: noisy-cora1-cora2; ACM-DBLP; foursquare-twitter; phone-email')
     parser.add_argument('--ratio', dest='ratio', type=float, default=0.2,
                         choices=[0.2],
                         help='training ratio: 0.1; 0.2')
@@ -18,7 +18,6 @@ def make_args():
                         help='use GPU')
     parser.add_argument('--lr', dest='lr', type=float, default=1e-3, help='learning_rate')
     parser.add_argument('--epochs', dest='epochs', type=int, default=250, help='number of epochs')
-    parser.add_argument('--neg', dest='neg_sample_size', type=int, default=500, help='negative sample size')
 
     parser.add_argument('--feat_dim', dest='feat_dim', type=int, default=128, help='feature dimension')
     parser.add_argument('--hidden_dim', dest='hidden_dim', type=int, default=128, help='hidden dimension')
@@ -37,7 +36,10 @@ def make_args():
     parser.add_argument('--agg_type', dest='agg_type', type=str, default='mean',
                         choices=['mean', 'sum', 'max', 'min'], help='aggregation function type')
 
+    parser.add_argument('--neg', dest='neg_sample_size', type=int, default=500, help='negative sample size')
     parser.add_argument('--margin', dest='margin', type=float, default=10, help='margin parameter of ranking loss')
+    parser.add_argument('--dist_type', dest='dist_type', type=str, default='l1',
+                        choices=['l1', 'cosine'], help='distance metric type (between two embeddings)')
     parser.add_argument('--random', dest='random', default=False, action='store_true',
                         help='use random anchors')
     parser.add_argument('--c', dest='c', type=int, default=1, help='c parameter of anchor dimension')
