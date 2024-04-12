@@ -3,13 +3,14 @@ import scipy
 import os
 
 
-def compute_metrics(out1, out2, test_pairs, hit_top_ks=(1, 5, 10, 30, 50, 100)):
+def compute_metrics(out1, out2, test_pairs, hit_top_ks=(1, 5, 10, 30, 50, 100), dist_type='cityblock'):
     """
     Compute metrics for the model (HITS@k, MRR)
     :param out1: output node embeddings of graph 1
     :param out2: output node embeddings of graph 2
     :param test_pairs: test pairs
     :param hit_top_ks: list of k for HITS@k
+    :param dist_type: distance function
     :return:
         hits: HITS@k
         mrr: MRR
@@ -20,8 +21,8 @@ def compute_metrics(out1, out2, test_pairs, hit_top_ks=(1, 5, 10, 30, 50, 100)):
     anchor1_embeddings = out1[test_pairs[:, 0]]
     anchor2_embeddings = out2[test_pairs[:, 1]]
 
-    distances1 = scipy.spatial.distance.cdist(anchor1_embeddings, out2, metric='cityblock')
-    distances2 = scipy.spatial.distance.cdist(anchor2_embeddings, out1, metric='cityblock')
+    distances1 = compute_distance_matrix(anchor1_embeddings, out2, dist_type)
+    distances2 = compute_distance_matrix(anchor2_embeddings, out1, dist_type)
     ranks1 = np.argsort(distances1, axis=1)
     ranks2 = np.argsort(distances2, axis=1)
 
@@ -37,6 +38,22 @@ def compute_metrics(out1, out2, test_pairs, hit_top_ks=(1, 5, 10, 30, 50, 100)):
     mrr = max(mrr_ltr, mrr_rtl)
 
     return hits, mrr
+
+
+def compute_distance_matrix(embedding1, embedding2, dist_type='cityblock'):
+    """
+    Compute distance matrix between two sets of embeddings
+    :param embedding1: node embeddings 1
+    :param embedding2: node embeddings 2
+    :param dist_type: distance function
+    :return: distance matrix
+    """
+    assert dist_type in ['cosine', 'cityblock'], 'Similarity function not supported'
+
+    if dist_type == 'cosine':
+        return scipy.spatial.distance.cdist(embedding1, embedding2, metric='cosine')
+    elif dist_type == 'cityblock':
+        return scipy.spatial.distance.cdist(embedding1, embedding2, metric='cityblock')
 
 
 def log_path(dataset):
