@@ -30,24 +30,28 @@ def compute_ot_cost_matrix(G1_data, G2_data):
     :return: cost_rwr: cost matrix
     """
 
-    alpha = 1
-    beta = 0.5
+    alpha = 0.5
+    beta = 0.15
     gamma = 0.8
 
     r1, r2 = G1_data.dists, G2_data.dists
     x1, x2 = G1_data.x, G2_data.x
-    cost_node = alpha * np.exp(-r1 @ r2.T) + (1-alpha) * np.exp(-x1 @ x2.T)
+    cost_node = alpha * np.exp(-(r1 @ r2.T)) + (1-alpha) * np.exp(-(x1 @ x2.T))
 
     A1, A2 = to_dense_adj(G1_data.edge_index)[0], to_dense_adj(G2_data.edge_index)[0]
-    D1, D2 = torch.diag(degree(G1_data.edge_index[0])), torch.diag(degree(G2_data.edge_index[0]))
-    W1, W2 = (torch.inverse(D1) @ A1).T, (torch.inverse(D2) @ A2).T
+    D1_inv, D2_inv = torch.diag(1/degree(G1_data.edge_index[0])), torch.diag(1/degree(G2_data.edge_index[0]))
+    W1, W2 = (D1_inv @ A1).T, (D2_inv @ A2).T
 
-    cost_rwr = np.copy(cost_node)
+    # cost_rwr = torch.clone(cost_node)
+    cost_rwr = torch.zeros_like(cost_node).float()
+    for a, x in zip(G1_data.anchor_nodes, G2_data.anchor_nodes):
+        cost_rwr[a][x] = 1
+
     cnt = 0
     while True:
-        cost_rwr_prev = np.copy(cost_rwr)
+        cost_rwr_prev = torch.clone(cost_rwr)
         cost_rwr = (1+beta) * cost_node + (1-beta) * gamma * (W1 @ cost_rwr @ W2.T)
-        if np.linalg.norm(cost_rwr - cost_rwr_prev) < 1e-6:
+        if torch.norm(cost_rwr - cost_rwr_prev) < 1e-6:
             break
         cnt += 1
     print(f"OT Cost converged in {cnt} iterations")
