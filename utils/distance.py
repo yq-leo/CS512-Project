@@ -55,9 +55,9 @@ def otcost_scores(G1, G2, anchor_links, dataset, ratio, alpha=0.1, **kwargs):
     r1, r2 = normalize(r1, norm='l2', axis=1), normalize(r2, norm='l2', axis=1)
     x1, x2 = normalize(x1, norm='l2', axis=1), normalize(x2, norm='l2', axis=1)
 
-    otcost_score = alpha * np.exp(-(r1 @ r2.T)) + (1 - alpha) * np.exp(-(x1 @ x2.T))
-    otcost_score1 = otcost_score[:, anchor_links[:, 1]]
-    otcost_score2 = otcost_score.T[:, anchor_links[:, 0]]
+    ot_cost = alpha * np.exp(-(r1 @ r2.T)) + (1 - alpha) * np.exp(-(x1 @ x2.T))
+    otcost_score1 = 1 - ot_cost[:, anchor_links[:, 1]]
+    otcost_score2 = 1 - ot_cost.T[:, anchor_links[:, 0]]
 
     return otcost_score1, otcost_score2
 
