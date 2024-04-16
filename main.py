@@ -32,9 +32,6 @@ if __name__ == '__main__':
     print("Computing OT cost...")
     cost_rwr = compute_ot_cost_matrix(G1_data, G2_data).cpu().numpy()
     hits, mrr = compute_metrics(cost_rwr[test_pairs[:, 0]], cost_rwr.T[test_pairs[:, 1]], test_pairs)
-    # distances1 = compute_distance_matrix(dists_score1[test_pairs[:, 0]], dists_score2, dist_type=args.dist_type)
-    # distances2 = compute_distance_matrix(dists_score2[test_pairs[:, 1]], dists_score1, dist_type=args.dist_type)
-    # hits, mrr = compute_metrics(distances1, distances2, test_pairs)
     print(f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
 
 
