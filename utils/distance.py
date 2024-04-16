@@ -1,10 +1,11 @@
 import numpy as np
+from sklearn.preprocessing import normalize
 import networkx as nx
 import os
 from tqdm import tqdm
 
 
-def get_distance_matrix(G1, G2, anchor_links, dataset, ratio, distance):
+def get_distance_matrix(G1, G2, anchor_links, dataset, ratio, distance='rwr', **kwargs):
     """
     Get distance matrix of the network
     :param G1: input graph 1
@@ -20,8 +21,7 @@ def get_distance_matrix(G1, G2, anchor_links, dataset, ratio, distance):
 
     if not os.path.exists(f'datasets/{distance}/{distance}_emb_{dataset}_{ratio:.1f}.npz'):
         assert f'{distance}_score' in globals(), f'{distance}_score function is not defined. IMPLEMENT IT FIRST!'
-        dists_score1 = globals()[f'{distance}_score'](G1, anchors=anchor_links[:, 0], desc=f'Computing {distance} scores for G1')
-        dists_score2 = globals()[f'{distance}_score'](G2, anchors=anchor_links[:, 1], desc=f'Computing {distance} scores for G2')
+        dists_score1, dists_score2 = globals()[f'{distance}_scores'](G1, G2, anchor_links, dataset, ratio, **kwargs)
         if not os.path.exists(f'datasets/{distance}'):
             os.makedirs(f'datasets/{distance}')
         print(f"Saving {distance} scores to datasets/{distance}/{distance}_emb_{dataset}_{ratio:.1f}.npz...", end=" ")
@@ -37,9 +37,49 @@ def get_distance_matrix(G1, G2, anchor_links, dataset, ratio, distance):
     return dists_score1, dists_score2
 
 
-def rwr_score(G, anchors, restart_prob=0.15, desc='Computing RWR scores'):
+def otcost_scores(G1, G2, anchor_links, dataset, ratio, alpha=0.1, **kwargs):
+    """
+    Compute initial node embedding vectors by OT-Cost
+    :param G1: network G1, i.e., networkx graph
+    :param G2: network G2, i.e., networkx graph
+    :param anchor_links: anchor links
+    :param dataset: dataset name
+    :param ratio: training ratio
+    :param alpha: hyperparameter
+    :return: otcost_score1, otcost_score2: OT-Cost vectors of the networks
+    """
+
+    r1, r2 = get_distance_matrix(G1, G2, anchor_links, dataset, ratio, distance='rwr', **kwargs)
+    x1, x2 = G1.x, G2.x
+
+    r1, r2 = normalize(r1, norm='l2', axis=1), normalize(r2, norm='l2', axis=1)
+    x1, x2 = normalize(x1, norm='l2', axis=1), normalize(x2, norm='l2', axis=1)
+
+    otcost_score = alpha * np.exp(-(r1 @ r2.T)) + (1 - alpha) * np.exp(-(x1 @ x2.T))
+    otcost_score1 = otcost_score[:, anchor_links[:, 1]]
+    otcost_score2 = otcost_score.T[:, anchor_links[:, 0]]
+
+    return otcost_score1, otcost_score2
+
+
+def rwr_scores(G1, G2, anchor_links, **kwargs):
     """
     Compute initial node embedding vectors by random walk with restart
+    :param G1: network G1, i.e., networkx graph
+    :param G2: network G2, i.e., networkx graph
+    :param anchor_links: anchor links
+    :return: rwr_score1, rwr_score2: RWR vectors of the networks
+    """
+
+    rwr_score1 = rwr_score(G1, anchor_links[:, 0], desc="Computing RWR scores for G1", **kwargs)
+    rwr_score2 = rwr_score(G2, anchor_links[:, 1], desc="Computing RWR scores for G2", **kwargs)
+
+    return rwr_score1, rwr_score2
+
+
+def rwr_score(G, anchors, restart_prob=0.15, desc='Computing RWR scores'):
+    """
+    Random walk with restart for a single graph
     :param G: network G, i.e., networkx graph
     :param anchors: anchor nodes
     :param restart_prob: restart probability

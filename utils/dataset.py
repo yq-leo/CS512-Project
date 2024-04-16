@@ -39,7 +39,10 @@ def build_nx_graph(edge_index, x=None):
     G = nx.Graph()
     if x is not None:
         G.add_nodes_from(np.arange(x.shape[0]))
+        G.x = x
     G.add_edges_from(edge_index)
+    if x is None:
+        G.x = np.ones((G.number_of_nodes(), 1))
     for edge in G.edges():
         G[edge[0]][edge[1]]['weight'] = 1
     return G
