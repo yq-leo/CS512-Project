@@ -46,6 +46,8 @@ if __name__ == '__main__':
         "mcf_type": args.mcf_type,
         "agg_type": args.agg_type
     }
+    # anchor_dim = num_anchor_links
+    # out_dim = args.out_dim
     print(f"Model settings: {model_settings}")
 
     model = PGNN(**model_settings).to(device)
