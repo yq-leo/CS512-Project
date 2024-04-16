@@ -4,6 +4,7 @@ import os
 
 import torch
 from torch_geometric.utils import to_dense_adj, degree
+import torch.nn.functional as F
 
 
 def compute_distance_matrix(embedding1, embedding2, dist_type='l1'):
@@ -30,32 +31,39 @@ def compute_ot_cost_matrix(G1_data, G2_data):
     :return: cost_rwr: cost matrix
     """
 
-    alpha = 0.5
+    alpha = 1
     beta = 0.15
     gamma = 0.8
 
     r1, r2 = G1_data.dists, G2_data.dists
     x1, x2 = G1_data.x, G2_data.x
-    cost_node = alpha * np.exp(-(r1 @ r2.T)) + (1-alpha) * np.exp(-(x1 @ x2.T))
 
-    A1, A2 = to_dense_adj(G1_data.edge_index)[0], to_dense_adj(G2_data.edge_index)[0]
-    D1_inv, D2_inv = torch.diag(1/degree(G1_data.edge_index[0])), torch.diag(1/degree(G2_data.edge_index[0]))
-    W1, W2 = (D1_inv @ A1).T, (D2_inv @ A2).T
+    r1, r2 = F.normalize(r1, p=2, dim=1), F.normalize(r2, p=2, dim=1)
+    x1, x2 = F.normalize(x1, p=2, dim=1), F.normalize(x2, p=2, dim=1)
 
-    # cost_rwr = torch.clone(cost_node)
-    cost_rwr = torch.zeros_like(cost_node).float()
-    for a, x in zip(G1_data.anchor_nodes, G2_data.anchor_nodes):
-        cost_rwr[a][x] = 1
+    cost_node = alpha * torch.exp(-(r1 @ r2.T)) + (1-alpha) * torch.exp(-(x1 @ x2.T))
+    # cost_node = torch.from_numpy(alpha * np.exp(compute_distance_matrix(r1, r2, 'cosine')))
+    # cost_node = alpha * torch.exp(-torch.tensor(compute_distance_matrix(r1, r2, 'cosine'))) + (1-alpha) * torch.exp(-(x1 @ x2.T))
 
-    cnt = 0
-    while True:
-        cost_rwr_prev = torch.clone(cost_rwr)
-        cost_rwr = (1+beta) * cost_node + (1-beta) * gamma * (W1 @ cost_rwr @ W2.T)
-        if torch.norm(cost_rwr - cost_rwr_prev) < 1e-6:
-            break
-        cnt += 1
-    print(f"OT Cost converged in {cnt} iterations")
-    return cost_rwr
+    # A1, A2 = to_dense_adj(G1_data.edge_index)[0], to_dense_adj(G2_data.edge_index)[0]
+    # D1_inv, D2_inv = torch.diag(1/degree(G1_data.edge_index[0])), torch.diag(1/degree(G2_data.edge_index[0]))
+    # W1, W2 = (D1_inv @ A1).T, (D2_inv @ A2).T
+    #
+    # # cost_rwr = torch.clone(cost_node)
+    # cost_rwr = torch.zeros_like(cost_node).float()
+    # for a, x in zip(G1_data.anchor_nodes, G2_data.anchor_nodes):
+    #     cost_rwr[a][x] = 1
+    #
+    # cnt = 0
+    # while True:
+    #     cost_rwr_prev = torch.clone(cost_rwr)
+    #     cost_rwr = (1+beta) * cost_node + (1-beta) * gamma * (W1 @ cost_rwr @ W2.T)
+    #     if torch.norm(cost_rwr - cost_rwr_prev) < 1e-6:
+    #         break
+    #     cnt += 1
+    # print(f"OT Cost converged in {cnt} iterations")
+
+    return cost_node
 
 
 def compute_metrics(distances1, distances2, test_pairs, hit_top_ks=(1, 5, 10, 30, 50, 100)):
