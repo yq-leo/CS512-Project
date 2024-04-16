@@ -2,4 +2,5 @@
 .idea/
 __pycache__/
 datasets/rwr/
+datasets/otcost/
 logs/

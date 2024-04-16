@@ -20,7 +20,7 @@ def get_distance_matrix(G1, G2, anchor_links, dataset, ratio, distance='rwr', **
         os.makedirs(f'datasets/{distance}')
 
     if not os.path.exists(f'datasets/{distance}/{distance}_emb_{dataset}_{ratio:.1f}.npz'):
-        assert f'{distance}_score' in globals(), f'{distance}_score function is not defined. IMPLEMENT IT FIRST!'
+        assert f'{distance}_scores' in globals(), f'{distance}_scores function is not defined. IMPLEMENT IT FIRST!'
         dists_score1, dists_score2 = globals()[f'{distance}_scores'](G1, G2, anchor_links, dataset, ratio, **kwargs)
         if not os.path.exists(f'datasets/{distance}'):
             os.makedirs(f'datasets/{distance}')

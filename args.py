@@ -12,8 +12,8 @@ def make_args():
     parser.add_argument('--use_attr', dest='use_attr', default=False, action='store_true',
                         help='use input node attributes')
     parser.add_argument('--distance', dest='distance', type=str, default='rwr',
-                        choices=['rwr'],
-                        help='distance metric: rwr')
+                        choices=['rwr', 'otcost'],
+                        help='distance metric: rwr; otcost')
     parser.add_argument('--gpu', dest='device', action='store_const', const='cuda:0', default='cpu',
                         help='use GPU')
     parser.add_argument('--lr', dest='lr', type=float, default=1e-3, help='learning_rate')
