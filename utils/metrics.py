@@ -31,7 +31,7 @@ def compute_ot_cost_matrix(G1_data, G2_data):
     :return: cost_rwr: cost matrix
     """
 
-    alpha = 1
+    alpha = 0.05
     beta = 0.15
     gamma = 0.8
 
