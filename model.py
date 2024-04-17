@@ -170,8 +170,8 @@ class PGNN(torch.nn.Module):
         x1_position, x1, x2_position, x2 = self.conv_first(x1, x2, dists_max_1, dists_max_2, dists_argmax_1, dists_argmax_2)
         x1, x2 = F.relu(x1), F.relu(x2)  # Note: optional!
         if self.num_layers == 1:
-            x1_position = F.normalize(x1_position, p=1, dim=-1)
-            x2_position = F.normalize(x2_position, p=1, dim=-1)
+            x1_position = F.normalize(x1_position, p=2, dim=-1)
+            x2_position = F.normalize(x2_position, p=2, dim=-1)
             return x1_position, x2_position
 
         if self.use_dropout:
@@ -186,8 +186,8 @@ class PGNN(torch.nn.Module):
                 x2 = F.dropout(x2, training=self.training)
 
         x1_position, x1, x2_position, x2 = self.conv_out(x1, x2, dists_max_1, dists_max_2, dists_argmax_1, dists_argmax_2)
-        x1_position = F.normalize(x1_position, p=1, dim=-1)
-        x2_position = F.normalize(x2_position, p=1, dim=-1)
+        x1_position = F.normalize(x1_position, p=2, dim=-1)
+        x2_position = F.normalize(x2_position, p=2, dim=-1)
         return x1_position, x2_position
 
 
@@ -205,7 +205,7 @@ class BRIGHT_U(torch.nn.Module):
         return pos_emd1, pos_emd2
 
 
-class RankingLossL1(torch.nn.Module):
+class RankingLoss(torch.nn.Module):
     def __init__(self, k, margin, dist_type='l1'):
         """
         Marginal Ranking Loss with L1 distance
@@ -213,7 +213,7 @@ class RankingLossL1(torch.nn.Module):
         :param margin: margin
         :param dist_type: distance metric type
         """
-        super().__init__()
+        super(RankingLoss, self).__init__()
         self.k = k
         self.margin = margin
         self.dist_type = dist_type
@@ -273,5 +273,117 @@ class RankingLossL1(torch.nn.Module):
         if self.dist_type == 'l1':
             return torch.sum(torch.abs(embedding1 - embedding2), 1)
         elif self.dist_type == 'cosine':
-            return 1 - torch.sum(embedding1 * embedding2, 1) / (torch.norm(embedding1, p=1, dim=1) * torch.norm(embedding2, p=1, dim=1))
+            return 1 - torch.sum(embedding1 * embedding2, 1) / (torch.norm(embedding1, p=2, dim=1) * torch.norm(embedding2, p=2, dim=1))
+
+
+class ConsistencyLoss(torch.nn.Module):
+    def __init__(self, G1_data, G2_data, lambda_edge=3e-2, lambda_neigh=5, lambda_align=5e-1, margin=10):
+        super(ConsistencyLoss, self).__init__()
+
+        self.lambda_edge = lambda_edge
+        self.lambda_neigh = lambda_neigh
+        self.lambda_align = lambda_align
+        self.margin = margin
+
+        x1, x2 = F.normalize(G1_data.x, p=2, dim=1), F.normalize(G2_data.x, p=2, dim=1)
+        self.C1 = torch.exp(-(x1 @ x1.T)) * G1_data.adj
+        self.C2 = torch.exp(-(x2 @ x2.T)) * G2_data.adj
+        self.W1 = (self.pinv_diag(G1_data.adj.sum(1)) @ G1_data.adj).T
+        self.W2 = (self.pinv_diag(G2_data.adj.sum(1)) @ G2_data.adj).T
+
+        assert G1_data.anchor_nodes.shape[0] == G2_data.anchor_nodes.shape[0], \
+            'Number of anchor links of G1 and G2 should be the same'
+        self.H = torch.zeros(G1_data.x.shape[0], G2_data.x.shape[0]).float()
+        for i in range(G1_data.anchor_nodes.shape[0]):
+            self.H[G1_data.anchor_nodes[i], G2_data.anchor_nodes[i]] = 1
+
+    def forward(self, out1, out2):
+        similarity = 1 - torch.exp(-(out1 @ out2.T))
+        edge_loss = self.compute_edge_loss(similarity)
+        neigh_loss = self.compute_neighborhood_loss(similarity)
+        align_loss = self.compute_alignment_loss(similarity)
+        return self.lambda_edge * edge_loss + self.lambda_neigh * neigh_loss + self.lambda_align * align_loss + self.margin
+
+    def compute_edge_loss(self, similarity):
+        n1, n2 = similarity.shape
+        vec_u, vec_v = torch.ones(n1, 1) / n1, torch.ones(n2, 1) / n2
+        L = (self.C1 ** 2) @ vec_u @ torch.ones(n2, 1).T + torch.ones(n1, 1) @ vec_v.T @ (self.C2 ** 2) - 2 * self.C1 @ similarity @ self.C2.T
+        edge_loss = torch.sum(L * similarity) / (n1 * n2)
+        return edge_loss
+
+    def compute_neighborhood_loss(self, similarity):
+        n1, n2 = similarity.shape
+        neigh_similarity = self.W1.T @ similarity @ self.W2
+        neigh_loss = torch.sum((neigh_similarity - similarity) ** 2) / (n1 * n2)
+        return neigh_loss
+
+    def compute_alignment_loss(self, similarity):
+        n1, n2 = similarity.shape
+        align_loss = torch.sum((self.H - similarity) ** 2) / (n1 * n2)
+        return align_loss
+
+    @staticmethod
+    def pinv_diag(vec):
+        inv = 1 / vec
+        for i in range(len(inv)):
+            if inv[i] == torch.inf:
+                inv[i] = 0
+        return torch.diag(inv)
+
+
+class RegularizedRankingLoss(RankingLoss):
+    def __init__(self, G1_data, G2_data, k, margin, dist_type='l1', lambda_edge=1e-2, lambda_neigh=1, lambda_align=1):
+        super(RegularizedRankingLoss, self).__init__(k, margin, dist_type)
+
+        self.lambda_reg = lambda_edge
+        self.lambda_neigh = lambda_neigh
+        self.lambda_align = lambda_align
+
+        x1, x2 = F.normalize(G1_data.x, p=2, dim=1), F.normalize(G2_data.x, p=2, dim=1)
+        self.C1 = torch.exp(-(x1 @ x1.T)) * G1_data.adj
+        self.C2 = torch.exp(-(x2 @ x2.T)) * G2_data.adj
+        self.W1 = (self.pinv_diag(G1_data.adj.sum(1)) @ G1_data.adj).T
+        self.W2 = (self.pinv_diag(G2_data.adj.sum(1)) @ G2_data.adj).T
+
+        assert G1_data.anchor_nodes.shape[0] == G2_data.anchor_nodes.shape[0], \
+            'Number of anchor links of G1 and G2 should be the same'
+        self.H = torch.zeros(G1_data.x.shape[0], G2_data.x.shape[0]).float()
+        for i in range(G1_data.anchor_nodes.shape[0]):
+            self.H[G1_data.anchor_nodes[i], G2_data.anchor_nodes[i]] = 1
+
+    def forward(self, out1, out2, anchor1, anchor2):
+        ranking_loss = super(RegularizedRankingLoss, self).forward(out1, out2, anchor1, anchor2)
+
+        similarity = 1 - torch.exp(-(out1 @ out2.T))
+        edge_loss = self.compute_edge_loss(similarity)
+        neigh_loss = self.compute_neighborhood_loss(similarity)
+        align_loss = self.compute_alignment_loss(similarity)
+
+        return ranking_loss + self.lambda_reg * edge_loss + self.lambda_neigh * neigh_loss + self.lambda_align * align_loss
+
+    def compute_edge_loss(self, similarity):
+        n1, n2 = similarity.shape
+        vec_u, vec_v = torch.ones(n1, 1) / n1, torch.ones(n2, 1) / n2
+        L = (self.C1 ** 2) @ vec_u @ torch.ones(n2, 1).T + torch.ones(n1, 1) @ vec_v.T @ (self.C2 ** 2) - 2 * self.C1 @ similarity @ self.C2.T
+        edge_loss = torch.sum(L * similarity) / (n1 * n2)
+        return edge_loss
+
+    def compute_neighborhood_loss(self, similarity):
+        n1, n2 = similarity.shape
+        neigh_similarity = self.W1.T @ similarity @ self.W2
+        neigh_loss = torch.sum((neigh_similarity - similarity) ** 2) / (n1 * n2)
+        return neigh_loss
+
+    def compute_alignment_loss(self, similarity):
+        n1, n2 = similarity.shape
+        align_loss = torch.sum((self.H - similarity) ** 2) / (n1 * n2)
+        return align_loss
+
+    @staticmethod
+    def pinv_diag(vec):
+        inv = 1 / vec
+        for i in range(len(inv)):
+            if inv[i] == torch.inf:
+                inv[i] = 0
+        return torch.diag(inv)
 

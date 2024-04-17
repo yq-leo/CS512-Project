@@ -53,7 +53,9 @@ if __name__ == '__main__':
     model = PGNN(**model_settings).to(device)
     # model = BRIGHT_U(anchor_dim, out_dim).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    criterion = RankingLossL1(args.neg_sample_size, args.margin, args.dist_type).to(device)
+    # criterion = RankingLoss(args.neg_sample_size, args.margin, args.dist_type).to(device)
+    # criterion = ConsistencyLoss(G1_data, G2_data).to(device)
+    criterion = RegularizedRankingLoss(G1_data, G2_data, args.neg_sample_size, args.margin, args.dist_type).to(device)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     # train model
@@ -61,14 +63,15 @@ if __name__ == '__main__':
         os.makedirs('logs')
     writer = SummaryWriter(log_path(args.dataset))
 
+    print("Training...")
     for epoch in range(args.epochs):
-        # training
         model.train()
         optimizer.zero_grad()
         G1_data.dists_max, G1_data.dists_argmax, G2_data.dists_max, G2_data.dists_argmax = (
             preselect_anchor(G1_data, G2_data, random=args.random, c=args.c, device=device))
         out1, out2 = model(G1_data, G2_data)
         loss = criterion(out1, out2, G1_data.anchor_nodes, G2_data.anchor_nodes)
+        # loss = criterion(out1, out2)
         loss.backward()
         optimizer.step()
         print(f'Epoch: {epoch + 1}, Loss: {loss.item():.6f}', end=" ")

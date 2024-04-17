@@ -2,6 +2,7 @@ import numpy as np
 import networkx as nx
 import torch
 from torch_geometric.data import Data
+from torch_geometric.utils import to_dense_adj, degree
 
 
 def load_data(file_name, p, use_attr):
@@ -64,4 +65,5 @@ def build_tg_graph(num_nodes, edge_index, x, anchor_nodes, dists):
     data = Data(x=x_tensor, edge_index=edge_index_tensor)
     data.anchor_nodes = torch.from_numpy(anchor_nodes).long()
     data.dists = torch.from_numpy(dists).float()
+    data.adj = to_dense_adj(edge_index_tensor).squeeze(0)
     return data
