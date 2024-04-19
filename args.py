@@ -40,6 +40,10 @@ def make_args():
     parser.add_argument('--margin', dest='margin', type=float, default=10, help='margin parameter of ranking loss')
     parser.add_argument('--dist_type', dest='dist_type', type=str, default='l1',
                         choices=['l1', 'cosine'], help='distance metric type (between two embeddings)')
+    parser.add_argument('--lambda_edge', dest='lambda_edge', type=float, default=1e-2, help='edge loss weight')
+    parser.add_argument('--lambda_node', dest='lambda_node', type=float, default=1e-1, help='node loss weight')
+    parser.add_argument('--lambda_align', dest='lambda_align', type=float, default=1, help='alignment loss weight')
+
     parser.add_argument('--random', dest='random', default=False, action='store_true',
                         help='use random anchors')
     parser.add_argument('--c', dest='c', type=int, default=1, help='c parameter of anchor dimension')

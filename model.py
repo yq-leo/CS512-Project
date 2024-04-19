@@ -168,7 +168,8 @@ class PGNN(torch.nn.Module):
             x1 = self.linear_pre(x1)
             x2 = self.linear_pre(x2)
         x1_position, x1, x2_position, x2 = self.conv_first(x1, x2, dists_max_1, dists_max_2, dists_argmax_1, dists_argmax_2)
-        x1, x2 = F.relu(x1), F.relu(x2)  # Note: optional!
+        x1, x2 = F.sigmoid(x1), F.sigmoid(x2)
+
         if self.num_layers == 1:
             x1_position = F.normalize(x1_position, p=2, dim=-1)
             x2_position = F.normalize(x2_position, p=2, dim=-1)
@@ -180,7 +181,7 @@ class PGNN(torch.nn.Module):
 
         for i in range(self.num_layers-2):
             _, x1, _, x2 = self.conv_hidden[i](x1, x2, dists_max_1, dists_max_2, dists_argmax_1, dists_argmax_2)
-            x1, x2 = F.relu(x1), F.relu(x2)  # Note: optional!
+            x1, x2 = F.sigmoid(x1), F.sigmoid(x2)
             if self.use_dropout:
                 x1 = F.dropout(x1, training=self.training)
                 x2 = F.dropout(x2, training=self.training)
@@ -277,7 +278,7 @@ class RankingLoss(torch.nn.Module):
 
 
 class ConsistencyLoss(torch.nn.Module):
-    def __init__(self, G1_data, G2_data, lambda_edge=3e-2, lambda_neigh=5, lambda_align=5e-1, margin=10):
+    def __init__(self, G1_data, G2_data, lambda_edge=5e-2, lambda_neigh=5, lambda_align=5e-1, margin=10):
         super(ConsistencyLoss, self).__init__()
 
         self.lambda_edge = lambda_edge
@@ -332,12 +333,13 @@ class ConsistencyLoss(torch.nn.Module):
 
 
 class RegularizedRankingLoss(RankingLoss):
-    def __init__(self, G1_data, G2_data, k, margin, dist_type='l1', lambda_edge=1e-2, lambda_neigh=1, lambda_align=1):
+    def __init__(self, G1_data, G2_data, k, margin, dist_type='l1', lambda_edge=3e-3, lambda_neigh=5, lambda_align=5e-1):
         super(RegularizedRankingLoss, self).__init__(k, margin, dist_type)
 
         self.lambda_reg = lambda_edge
         self.lambda_neigh = lambda_neigh
         self.lambda_align = lambda_align
+        self.alpha = 0.5
 
         x1, x2 = F.normalize(G1_data.x, p=2, dim=1), F.normalize(G2_data.x, p=2, dim=1)
         self.C1 = torch.exp(-(x1 @ x1.T)) * G1_data.adj
@@ -359,7 +361,8 @@ class RegularizedRankingLoss(RankingLoss):
         neigh_loss = self.compute_neighborhood_loss(similarity)
         align_loss = self.compute_alignment_loss(similarity)
 
-        return ranking_loss + self.lambda_reg * edge_loss + self.lambda_neigh * neigh_loss + self.lambda_align * align_loss
+        return (self.alpha * ranking_loss + (1 - self.alpha) *
+                (self.lambda_reg * edge_loss + self.lambda_neigh * neigh_loss + self.lambda_align * align_loss))
 
     def compute_edge_loss(self, similarity):
         n1, n2 = similarity.shape
