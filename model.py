@@ -207,9 +207,9 @@ class BRIGHT_U(torch.nn.Module):
 
 
 class RankingLoss(torch.nn.Module):
-    def __init__(self, k, margin, dist_type='l1'):
+    def __init__(self, k, margin, dist_type='l1', **kwargs):
         """
-        Marginal Ranking Loss with L1 distance
+        Marginal Ranking Loss
         :param k: number of negative samples
         :param margin: margin
         :param dist_type: distance metric type
@@ -278,7 +278,7 @@ class RankingLoss(torch.nn.Module):
 
 
 class ConsistencyLoss(torch.nn.Module):
-    def __init__(self, G1_data, G2_data, lambda_edge=5e-2, lambda_neigh=5, lambda_align=5e-1, margin=10):
+    def __init__(self, G1_data, G2_data, lambda_edge=5e-2, lambda_neigh=5, lambda_align=5e-1, margin=10, **kwargs):
         super(ConsistencyLoss, self).__init__()
 
         self.lambda_edge = lambda_edge
@@ -298,7 +298,7 @@ class ConsistencyLoss(torch.nn.Module):
         for i in range(G1_data.anchor_nodes.shape[0]):
             self.H[G1_data.anchor_nodes[i], G2_data.anchor_nodes[i]] = 1
 
-    def forward(self, out1, out2):
+    def forward(self, out1, out2, **kwargs):
         similarity = 1 - torch.exp(-(out1 @ out2.T))
         edge_loss = self.compute_edge_loss(similarity)
         neigh_loss = self.compute_neighborhood_loss(similarity)
@@ -333,7 +333,7 @@ class ConsistencyLoss(torch.nn.Module):
 
 
 class RegularizedRankingLoss(RankingLoss):
-    def __init__(self, G1_data, G2_data, k, margin, dist_type='l1', lambda_edge=3e-3, lambda_neigh=5, lambda_align=5e-1):
+    def __init__(self, G1_data, G2_data, k, margin, dist_type='l1', lambda_edge=3e-3, lambda_neigh=5, lambda_align=5e-1, **kwargs):
         super(RegularizedRankingLoss, self).__init__(k, margin, dist_type)
 
         self.lambda_reg = lambda_edge

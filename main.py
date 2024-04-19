@@ -53,9 +53,11 @@ if __name__ == '__main__':
     model = PGNN(**model_settings).to(device)
     # model = BRIGHT_U(anchor_dim, out_dim).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    # criterion = RankingLoss(args.neg_sample_size, args.margin, args.dist_type).to(device)
-    # criterion = ConsistencyLoss(G1_data, G2_data).to(device)
-    criterion = RegularizedRankingLoss(G1_data, G2_data, args.neg_sample_size, args.margin, args.dist_type).to(device)
+    criterion = globals()[f'{args.loss_func}Loss'](G1_data=G1_data,
+                                                   G2_data=G2_data,
+                                                   k=args.neg_sample_size,
+                                                   margin=args.margin,
+                                                   dist_type=args.dist_type).to(device)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     # train model
@@ -70,8 +72,7 @@ if __name__ == '__main__':
         G1_data.dists_max, G1_data.dists_argmax, G2_data.dists_max, G2_data.dists_argmax = (
             preselect_anchor(G1_data, G2_data, random=args.random, c=args.c, device=device))
         out1, out2 = model(G1_data, G2_data)
-        loss = criterion(out1, out2, G1_data.anchor_nodes, G2_data.anchor_nodes)
-        # loss = criterion(out1, out2)
+        loss = criterion(out1=out1, out2=out2, anchor1=G1_data.anchor_nodes, anchor2=G2_data.anchor_nodes)
         loss.backward()
         optimizer.step()
         print(f'Epoch: {epoch + 1}, Loss: {loss.item():.6f}', end=" ")
