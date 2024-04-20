@@ -1,5 +1,6 @@
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.tensorboard import SummaryWriter
+from collections import defaultdict
 
 from utils import *
 from args import *
@@ -66,6 +67,8 @@ if __name__ == '__main__':
     writer = SummaryWriter(log_path(args.dataset))
 
     print("Training...")
+    max_hits = defaultdict(int)
+    max_mrr = 0
     for epoch in range(args.epochs):
         model.train()
         optimizer.zero_grad()
@@ -84,6 +87,9 @@ if __name__ == '__main__':
         distances2 = compute_distance_matrix(out2_np[test_pairs[:, 1]], out1_np, dist_type=args.dist_type)
         hits, mrr = compute_metrics(distances1, distances2, test_pairs)
         print(f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
+        max_mrr = max(max_mrr, mrr)
+        for key, value in hits.items():
+            max_hits[key] = max(max_hits[key], value)
 
         writer.add_scalar('Loss', loss.item(), epoch)
         writer.add_scalar('MRR', mrr, epoch)
@@ -91,5 +97,7 @@ if __name__ == '__main__':
             writer.add_scalar(f'Hits@{key}', value, epoch)
 
         scheduler.step()
+
+    writer.add_hparams(vars(args), {'hparam/MRR': max_mrr, **{f'hparam/Hits@{key}': value for key, value in max_hits.items()}})
 
     writer.close()

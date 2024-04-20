@@ -2,7 +2,7 @@ networkx
 numpy
 pydantic
 scipy
-tensorboard
+tensorboard==2.15.1
 torch
 torch_geometric
 tqdm
