@@ -94,7 +94,7 @@ if __name__ == '__main__':
         writer.add_scalar('Loss', loss.item(), epoch)
         writer.add_scalar('MRR', mrr, epoch)
         for key, value in hits.items():
-            writer.add_scalar(f'Hits@{key}', value, epoch)
+            writer.add_scalar(f'Hits/Hits@{key}', value, epoch)
 
         scheduler.step()
 
