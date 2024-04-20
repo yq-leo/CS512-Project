@@ -297,6 +297,7 @@ class ConsistencyLoss(torch.nn.Module):
         self.H = torch.zeros(G1_data.x.shape[0], G2_data.x.shape[0]).float()
         for i in range(G1_data.anchor_nodes.shape[0]):
             self.H[G1_data.anchor_nodes[i], G2_data.anchor_nodes[i]] = 1
+        self.H /= G1_data.anchor_nodes.shape[0]
 
     def forward(self, out1, out2, **kwargs):
         similarity = 1 - torch.exp(-(out1 @ out2.T))
