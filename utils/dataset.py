@@ -29,10 +29,11 @@ def load_data(file_name, p, use_attr):
     return edge_index1, edge_index2, x1, x2, anchor_links, test_pairs
 
 
-def build_nx_graph(edge_index, x=None):
+def build_nx_graph(edge_index, anchor_nodes, x=None):
     """
     Build a networkx graph from edge list and node attributes.
     :param edge_index: edge list of the graph
+    :param anchor_nodes: anchor nodes
     :param x: node attributes of the graph
     :return: a networkx graph
     """
@@ -46,6 +47,7 @@ def build_nx_graph(edge_index, x=None):
         G.x = np.ones((G.number_of_nodes(), 1))
     for edge in G.edges():
         G[edge[0]][edge[1]]['weight'] = 1
+    G.anchor_nodes = anchor_nodes
     return G
 
 

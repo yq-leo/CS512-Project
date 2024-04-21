@@ -18,7 +18,7 @@ if __name__ == '__main__':
     # load data and build networkx graphs
     print("Loading data...")
     edge_index1, edge_index2, x1, x2, anchor_links, test_pairs = load_data(f"datasets/{args.dataset}", args.ratio, args.use_attr)
-    G1, G2 = build_nx_graph(edge_index1, x1), build_nx_graph(edge_index2, x2)
+    G1, G2 = build_nx_graph(edge_index1, anchor_links[:, 0], x1), build_nx_graph(edge_index2, anchor_links[:, 0], x2)
     num_anchor_links = anchor_links.shape[0]
 
     # compute distance metric scores (e.g. random walk with restart (rwr))

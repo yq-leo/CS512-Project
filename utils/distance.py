@@ -91,13 +91,14 @@ def otcost_scores(G1, G2, anchor_links, dataset, ratio, alpha=0.1, **kwargs):
     x1, x2 = normalize(x1, norm='l2', axis=1), normalize(x2, norm='l2', axis=1)
 
     ot_cost = alpha * np.exp(-(r1 @ r2.T)) + (1 - alpha) * np.exp(-(x1 @ x2.T))
+    ot_cost[(G1.anchor_nodes, G2.anchor_nodes)] = 0
     otcost_score1 = 1 - ot_cost[:, anchor_links[:, 1]]
     otcost_score2 = 1 - ot_cost.T[:, anchor_links[:, 0]]
 
     return otcost_score1, otcost_score2
 
 
-def rwr_scores(G1, G2, anchor_links, **kwargs):
+def rwr_scores(G1, G2, anchor_links, *args, **kwargs):
     """
     Compute initial node embedding vectors by random walk with restart
     :param G1: network G1, i.e., networkx graph
