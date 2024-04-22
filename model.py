@@ -305,11 +305,24 @@ class ConsistencyLoss(torch.nn.Module):
         self.H /= G1_data.anchor_nodes.shape[0]
 
     def forward(self, out1, out2, **kwargs):
+        # similarity = 1 - torch.exp(-(out1 @ out2.T))
+        # edge_loss = self.compute_edge_loss(similarity)
+        # neigh_loss = self.compute_neighborhood_loss(similarity)
+        # align_loss = self.compute_alignment_loss(similarity)
+        # return self.lambda_edge * edge_loss + self.lambda_neigh * neigh_loss + self.lambda_align * align_loss + self.margin
         similarity = 1 - torch.exp(-(out1 @ out2.T))
         edge_loss = self.compute_edge_loss(similarity)
         neigh_loss = self.compute_neighborhood_loss(similarity)
-        align_loss = self.compute_alignment_loss(similarity)
-        return self.lambda_edge * edge_loss + self.lambda_neigh * neigh_loss + self.lambda_align * align_loss + self.margin
+        # align_loss = self.compute_alignment_loss(similarity)
+
+        # return self.lambda_edge * edge_loss + self.lambda_neigh * neigh_loss + self.lambda_align * align_loss + self.margin
+        align_loss, align_loss_per_anchor = self.compute_alignment_loss(similarity)
+        
+        total_loss = (self.lambda_edge * edge_loss + 
+                      self.lambda_neigh * neigh_loss + 
+                      self.lambda_align * align_loss + 
+                      self.margin)
+        return total_loss, align_loss_per_anchor
 
     def compute_edge_loss(self, similarity):
         n1, n2 = similarity.shape
@@ -325,9 +338,14 @@ class ConsistencyLoss(torch.nn.Module):
         return neigh_loss
 
     def compute_alignment_loss(self, similarity):
+        # n1, n2 = similarity.shape
+        # align_loss = torch.sum((self.H - similarity) ** 2) / (n1 * n2)
+        # return align_loss
         n1, n2 = similarity.shape
-        align_loss = torch.sum((self.H - similarity) ** 2) / (n1 * n2)
-        return align_loss
+        loss_matrix = (self.H - similarity) ** 2
+        align_loss = torch.sum(loss_matrix) / (n1 * n2)
+        align_loss_per_anchor = loss_matrix[self.H > 0]  # Only consider entries where H is non-zero
+        return align_loss, align_loss_per_anchor
 
     @staticmethod
     def pinv_diag(vec):
@@ -360,15 +378,29 @@ class RegularizedRankingLoss(RankingLoss):
             self.H[G1_data.anchor_nodes[i], G2_data.anchor_nodes[i]] = 1
 
     def forward(self, out1, out2, anchor1, anchor2):
-        ranking_loss = super(RegularizedRankingLoss, self).forward(out1, out2, anchor1, anchor2)
+        # ranking_loss = super(RegularizedRankingLoss, self).forward(out1, out2, anchor1, anchor2)
+
+        # similarity = 1 - torch.exp(-(out1 @ out2.T))
+        # edge_loss = self.compute_edge_loss(similarity)
+        # neigh_loss = self.compute_neighborhood_loss(similarity)
+        # align_loss = self.compute_alignment_loss(similarity)
+
+        # return (self.alpha * ranking_loss + (1 - self.alpha) *
+        #         (self.lambda_reg * edge_loss + self.lambda_neigh * neigh_loss + self.lambda_align * align_loss))
+        ranking_loss, _ = super(RegularizedRankingLoss, self).forward(out1, out2, anchor1, anchor2)
 
         similarity = 1 - torch.exp(-(out1 @ out2.T))
         edge_loss = self.compute_edge_loss(similarity)
         neigh_loss = self.compute_neighborhood_loss(similarity)
-        align_loss = self.compute_alignment_loss(similarity)
+        align_loss, align_loss_per_anchor = self.compute_alignment_loss(similarity)
 
-        return (self.alpha * ranking_loss + (1 - self.alpha) *
+        total_loss = (self.alpha * ranking_loss + (1 - self.alpha) *
                 (self.lambda_reg * edge_loss + self.lambda_neigh * neigh_loss + self.lambda_align * align_loss))
+
+        # return (self.alpha * ranking_loss + (1 - self.alpha) *
+        #         (self.lambda_reg * edge_loss + self.lambda_neigh * neigh_loss + self.lambda_align * align_loss))
+        return total_loss, align_loss_per_anchor
+
 
     def compute_edge_loss(self, similarity):
         n1, n2 = similarity.shape
@@ -384,9 +416,17 @@ class RegularizedRankingLoss(RankingLoss):
         return neigh_loss
 
     def compute_alignment_loss(self, similarity):
+        # n1, n2 = similarity.shape
+        # align_loss = torch.sum((self.H - similarity) ** 2) / (n1 * n2)
+        # return align_loss
         n1, n2 = similarity.shape
-        align_loss = torch.sum((self.H - similarity) ** 2) / (n1 * n2)
-        return align_loss
+        # align_loss = torch.sum((self.H - similarity) ** 2) / (n1 * n2)
+        # return align_loss
+        loss_matrix = (self.H - similarity) ** 2
+        align_loss = torch.sum(loss_matrix) / (n1 * n2)
+        detailed_losses = torch.zeros_like(self.H)
+        detailed_losses[self.H > 0] = loss_matrix[self.H > 0]
+        return align_loss, detailed_losses
 
     @staticmethod
     def pinv_diag(vec):
