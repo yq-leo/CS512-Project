@@ -261,12 +261,17 @@ class RankingLoss(torch.nn.Module):
         D = A + self.margin
         B1 = -self.compute_dist(anchor_embeddings_1.unsqueeze(1).repeat(1, self.k, 1).view(-1, anchor_embeddings_1.shape[-1]),
                                 neg_embeddings_1.view(-1, neg_embeddings_1.shape[-1]))
-        L1 = torch.sum(F.relu(D.unsqueeze(-1) + B1.view(-1, self.k)))
+        # L1 = torch.sum(F.relu(D.unsqueeze(-1) + B1.view(-1, self.k)))
         B2 = -self.compute_dist(anchor_embeddings_2.unsqueeze(1).repeat(1, self.k, 1).view(-1, anchor_embeddings_2.shape[-1]),
                                 neg_embeddings_2.view(-1, neg_embeddings_2.shape[-1]))
-        L2 = torch.sum(F.relu(D.unsqueeze(-1) + B2.view(-1, self.k)))
+        # L2 = torch.sum(F.relu(D.unsqueeze(-1) + B2.view(-1, self.k)))
+        loss1 = F.relu(D.unsqueeze(-1) + B1.view(-1, self.k))
+        loss2 = F.relu(D.unsqueeze(-1) + B2.view(-1, self.k))
 
-        return (L1 + L2) / (anchor1.shape[0] * self.k)
+        # return (L1 + L2) / (anchor1.shape[0] * self.k)
+        total_loss = (torch.sum(loss1) + torch.sum(loss2)) / (anchor1.shape[0] * self.k)
+        detailed_loss = (torch.sum(loss1, dim=1) + torch.sum(loss2, dim=1)) / self.k
+        return total_loss, detailed_loss
 
     def compute_dist(self, embedding1, embedding2):
         assert self.dist_type in ['l1', 'cosine'], 'Similarity function not supported'
