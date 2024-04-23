@@ -50,5 +50,9 @@ def make_args():
 	parser.add_argument('--random', dest='random', default=False, action='store_true',
 						help='use random anchors')
 	parser.add_argument('--c', dest='c', type=int, default=1, help='c parameter of anchor dimension')
+	parser.add_argument('--update_anchor', dest='update_anchor', default=False, action='store_true', 
+						help='trian withe anchor nodes updates')
+	parser.add_argument('--update_interval', dest='update_interval', type=int, default=10, help='Update interval of anchor nodes')
+	parser.add_argument('--update_loss_threshold', dest='update_loss_threshold', type=float, default=0.5, help='Update loss threshold of anchor nodes')
 	args = parser.parse_args()
 	return args

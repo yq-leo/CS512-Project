@@ -45,7 +45,10 @@ if __name__ == '__main__':
 		"dist_trainable": args.dist_trainable,
 		"use_hidden": args.use_hidden,
 		"mcf_type": args.mcf_type,
-		"agg_type": args.agg_type
+		"agg_type": args.agg_type,
+		"update_anchor": args.update_anchor,
+		"update_interval": args.update_interval,
+		"update_loss_threshold": args.update_loss_threshold
 	}
 	# anchor_dim = num_anchor_links
 	# out_dim = args.out_dim
@@ -79,9 +82,9 @@ if __name__ == '__main__':
 		loss.backward()
 		optimizer.step()
 		
-		if (epoch+1) % 10 == 0:
+		if (epoch+1) % args.update_interval == 0 and args.update_anchor==True:
 			G1_data.anchor_nodes, G2_data.anchor_nodes = update_anchors(
-			out1, out2, G1_data.anchor_nodes, G2_data.anchor_nodes, detailed_loss, threshold=0.5)
+			out1, out2, G1_data.anchor_nodes, G2_data.anchor_nodes, detailed_loss, threshold=args.update_loss_threshold)
 			print(f'\nUpdated Anchor Nodes for G1: {G1_data.anchor_nodes}')
 			print(f'Updated Anchor Nodes for G2: {G2_data.anchor_nodes}')
 		print(f'Epoch: {epoch + 1}, Loss: {loss.item():.6f}', end=" ")
