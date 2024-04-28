@@ -50,5 +50,7 @@ def make_args():
     parser.add_argument('--random', dest='random', default=False, action='store_true',
                         help='use random anchors')
     parser.add_argument('--c', dest='c', type=int, default=1, help='c parameter of anchor dimension')
+
+    parser.add_argument('--runs', dest='runs', type=int, default=1, help='number of runs')
     args = parser.parse_args()
     return args

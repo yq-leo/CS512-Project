@@ -64,7 +64,7 @@ if __name__ == '__main__':
     # train model
     if not os.path.exists('logs'):
         os.makedirs('logs')
-    writer = SummaryWriter(log_path(args.dataset))
+    writer = SummaryWriter(log_path(args.dataset, args.use_attr))
 
     print("Training...")
     max_hits = defaultdict(int)
