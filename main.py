@@ -29,8 +29,8 @@ if __name__ == '__main__':
     device = torch.device(args.device)
 
     # build PyG Data objects
-    G1_data = build_tg_graph(G1.number_of_nodes(), edge_index1, x1, anchor_links[:, 0], dists_score1).to(device)
-    G2_data = build_tg_graph(G2.number_of_nodes(), edge_index2, x2, anchor_links[:, 1], dists_score2).to(device)
+    G1_data = build_tg_graph(G1.number_of_nodes(), edge_index1, G1.x, anchor_links[:, 0], dists_score1).to(device)
+    G2_data = build_tg_graph(G2.number_of_nodes(), edge_index2, G2.x, anchor_links[:, 1], dists_score2).to(device)
 
     # model setting
     model_settings = {
@@ -83,9 +83,8 @@ if __name__ == '__main__':
         # testing
         out1_np = out1.detach().cpu().numpy()
         out2_np = out2.detach().cpu().numpy()
-        distances1 = compute_distance_matrix(out1_np[test_pairs[:, 0]], out2_np, dist_type=args.dist_type)
-        distances2 = compute_distance_matrix(out2_np[test_pairs[:, 1]], out1_np, dist_type=args.dist_type)
-        hits, mrr = compute_metrics(distances1, distances2, test_pairs)
+        dissimilarity = compute_distance_matrix(out1_np, out2_np, dist_type=args.dist_type, use_attr=args.use_attr, x1=x1, x2=x2)
+        hits, mrr = compute_metrics(dissimilarity, test_pairs)
         print(f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
         max_mrr = max(max_mrr, mrr)
         for key, value in hits.items():
