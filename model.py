@@ -340,11 +340,15 @@ class RegularizedRankingLoss(RankingLoss):
         self.lambda_reg = lambda_edge
         self.lambda_neigh = lambda_neigh
         self.lambda_align = lambda_align
-        self.alpha = 0.5
+        self.alpha = 0.2
 
-        x1, x2 = F.normalize(G1_data.x, p=2, dim=1), F.normalize(G2_data.x, p=2, dim=1)
-        self.C1 = torch.exp(-(x1 @ x1.T)) * G1_data.adj
-        self.C2 = torch.exp(-(x2 @ x2.T)) * G2_data.adj
+        x1 = G1_data.x if G1_data.x.shape[1] > 1 else G1_data.dists
+        x2 = G2_data.x if G2_data.x.shape[1] > 1 else G2_data.dists
+        x1, x2 = F.normalize(x1, p=2, dim=1), F.normalize(x2, p=2, dim=1)
+        self.intra_s1 = torch.exp(-(x1 @ x1.T))
+        self.intra_s2 = torch.exp(-(x2 @ x2.T))
+        self.C1 = self.intra_s1 * G1_data.adj
+        self.C2 = self.intra_s2 * G2_data.adj
         self.W1 = (self.pinv_diag(G1_data.adj.sum(1)) @ G1_data.adj).T
         self.W2 = (self.pinv_diag(G2_data.adj.sum(1)) @ G2_data.adj).T
 
@@ -359,11 +363,12 @@ class RegularizedRankingLoss(RankingLoss):
 
         similarity = 1 - torch.exp(-(out1 @ out2.T))
         edge_loss = self.compute_edge_loss(similarity)
+        intra_loss = self.compute_intra_loss(out1, out2)
         neigh_loss = self.compute_neighborhood_loss(similarity)
         align_loss = self.compute_alignment_loss(similarity)
 
         return (self.alpha * ranking_loss + (1 - self.alpha) *
-                (self.lambda_reg * edge_loss + self.lambda_neigh * neigh_loss + self.lambda_align * align_loss))
+                (self.lambda_reg * edge_loss + 0.1 * intra_loss + self.lambda_neigh * neigh_loss + self.lambda_align * align_loss))
 
     def compute_edge_loss(self, similarity):
         n1, n2 = similarity.shape
@@ -371,6 +376,11 @@ class RegularizedRankingLoss(RankingLoss):
         L = (self.C1 ** 2) @ vec_u @ torch.ones(n2, 1).T + torch.ones(n1, 1) @ vec_v.T @ (self.C2 ** 2) - 2 * self.C1 @ similarity @ self.C2.T
         edge_loss = torch.sum(L * similarity) / (n1 * n2)
         return edge_loss
+
+    def compute_intra_loss(self, out1, out2):
+        G1_intra_loss = torch.sum((self.C1 - torch.exp(out1 @ out1.T)) ** 2) / (out1.shape[0] ** 2)
+        G2_intra_loss = torch.sum((self.C2 - torch.exp(out2 @ out2.T)) ** 2) / (out2.shape[0] ** 2)
+        return G1_intra_loss + G2_intra_loss
 
     def compute_neighborhood_loss(self, similarity):
         n1, n2 = similarity.shape
