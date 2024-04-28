@@ -29,8 +29,8 @@ if __name__ == '__main__':
     device = torch.device(args.device)
 
     # build PyG Data objects
-    G1_data = build_tg_graph(G1.number_of_nodes(), edge_index1, x1, anchor_links[:, 0], dists_score1).to(device)
-    G2_data = build_tg_graph(G2.number_of_nodes(), edge_index2, x2, anchor_links[:, 1], dists_score2).to(device)
+    G1_data = build_tg_graph(G1.number_of_nodes(), edge_index1, G1.x, anchor_links[:, 0], dists_score1).to(device)
+    G2_data = build_tg_graph(G2.number_of_nodes(), edge_index2, G2.x, anchor_links[:, 1], dists_score2).to(device)
 
     # model setting
     model_settings = {
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     # train model
     if not os.path.exists('logs'):
         os.makedirs('logs')
-    writer = SummaryWriter(log_path(args.dataset))
+    writer = SummaryWriter(log_path(args.dataset, args.use_attr))
 
     print("Training...")
     max_hits = defaultdict(int)

@@ -50,7 +50,10 @@ def compute_metrics(distances1, distances2, test_pairs, hit_top_ks=(1, 5, 10, 30
     return hits, mrr
 
 
-def log_path(dataset):
+def log_path(dataset, use_attr=False):
+    if dataset == 'ACM-DBLP':
+        dataset = 'ACM-DBLP_attr' if use_attr else 'ACM-DBLP'
+
     if not os.path.exists(f'logs/{dataset}_results'):
         os.makedirs(f'logs/{dataset}_results')
     runs = len([f for f in os.listdir(f'logs/{dataset}_results') if os.path.isdir(f'logs/{dataset}_results/{f}')])

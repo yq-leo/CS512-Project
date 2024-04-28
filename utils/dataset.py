@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.preprocessing import normalize
 import networkx as nx
 import torch
 from torch_geometric.data import Data
@@ -43,8 +44,8 @@ def build_nx_graph(edge_index, anchor_nodes, x=None):
         G.add_nodes_from(np.arange(x.shape[0]))
         G.x = x
     G.add_edges_from(edge_index)
-    # if x is None:
-    #     G.x = np.ones((G.number_of_nodes(), 1))
+    if x is None:
+        G.x = gen_feat_mat(G)
     for edge in G.edges():
         G[edge[0]][edge[1]]['weight'] = 1
     G.anchor_nodes = anchor_nodes
@@ -69,3 +70,30 @@ def build_tg_graph(num_nodes, edge_index, x, anchor_nodes, dists):
     data.dists = torch.from_numpy(dists).float()
     data.adj = to_dense_adj(edge_index_tensor).squeeze(0)
     return data
+
+
+def gen_feat_mat(G):
+    """
+    Generate hand-crafted node features for the graph.
+    :param G: networkx graph
+    :return:
+        x: node features
+    """
+
+    # Degree
+    degrees = np.array([G.degree[i] for i in range(G.number_of_nodes())]).reshape(-1, 1)
+
+    # Node Centrality
+    degree_centrality = nx.degree_centrality(G)
+    degree_centrality = np.array([degree_centrality[i] for i in range(G.number_of_nodes())]).reshape(-1, 1)
+    eigenvector_centrality = nx.eigenvector_centrality(G)
+    eigenvector_centrality = np.array([eigenvector_centrality[i] for i in range(G.number_of_nodes())]).reshape(-1, 1)
+
+    # Clustering Coefficient
+    clustering_coefficient = nx.clustering(G)
+    clustering_coefficient = np.array([clustering_coefficient[i] for i in range(G.number_of_nodes())]).reshape(-1, 1)
+
+    x = np.concatenate([degrees, degree_centrality, eigenvector_centrality, clustering_coefficient], axis=1)
+    x = normalize(x, axis=0)
+
+    return x
