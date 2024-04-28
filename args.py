@@ -37,7 +37,7 @@ def make_args():
                         choices=['mean', 'sum', 'max', 'min'], help='aggregation function type')
 
     parser.add_argument('--loss', dest='loss_func', type=str, default='Ranking',
-                        choices=['Ranking', 'Consistency', 'RegularizedRanking'],
+                        choices=['Ranking', 'Consistency', 'RegularizedRanking', 'WeightedRanking', 'WeightedRegularizedRanking'],
                         help='loss function type: Ranking; Consistency; RegularizedRanking')
     parser.add_argument('--neg', dest='neg_sample_size', type=int, default=500, help='negative sample size')
     parser.add_argument('--margin', dest='margin', type=float, default=10, help='margin parameter of ranking loss')

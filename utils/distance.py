@@ -85,7 +85,8 @@ def otcost_scores(G1, G2, anchor_links, dataset, ratio, alpha=0.1, **kwargs):
     """
 
     r1, r2 = get_distance_matrix(G1, G2, anchor_links, dataset, ratio, distance='rwr', **kwargs)
-    x1, x2 = G1.x, G2.x
+    x1 = G1.x if G1.x is not None else r1
+    x2 = G2.x if G2.x is not None else r2
 
     r1, r2 = normalize(r1, norm='l2', axis=1), normalize(r2, norm='l2', axis=1)
     x1, x2 = normalize(x1, norm='l2', axis=1), normalize(x2, norm='l2', axis=1)

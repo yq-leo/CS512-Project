@@ -54,4 +54,5 @@ def log_path(dataset):
     if not os.path.exists(f'logs/{dataset}_results'):
         os.makedirs(f'logs/{dataset}_results')
     runs = len([f for f in os.listdir(f'logs/{dataset}_results') if os.path.isdir(f'logs/{dataset}_results/{f}')])
-    return f'logs/{dataset}_results/run_{runs}'
+    runs_str = str(runs).zfill(3)
+    return f'logs/{dataset}_results/run_{runs_str}'

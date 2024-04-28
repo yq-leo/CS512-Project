@@ -2,7 +2,7 @@ import numpy as np
 import networkx as nx
 import torch
 from torch_geometric.data import Data
-from torch_geometric.utils import to_dense_adj, degree
+from torch_geometric.utils import to_dense_adj
 
 
 def load_data(file_name, p, use_attr):
@@ -43,8 +43,8 @@ def build_nx_graph(edge_index, anchor_nodes, x=None):
         G.add_nodes_from(np.arange(x.shape[0]))
         G.x = x
     G.add_edges_from(edge_index)
-    if x is None:
-        G.x = np.ones((G.number_of_nodes(), 1))
+    # if x is None:
+    #     G.x = np.ones((G.number_of_nodes(), 1))
     for edge in G.edges():
         G[edge[0]][edge[1]]['weight'] = 1
     G.anchor_nodes = anchor_nodes
@@ -63,7 +63,7 @@ def build_tg_graph(num_nodes, edge_index, x, anchor_nodes, dists):
     """
 
     edge_index_tensor = torch.tensor(edge_index.T, dtype=torch.long)
-    x_tensor = torch.tensor(x, dtype=torch.float) if x is not None else torch.ones((num_nodes, 1), dtype=torch.float)
+    x_tensor = torch.tensor(x, dtype=torch.float) if x is not None else torch.ones((num_nodes, 1)).float()
     data = Data(x=x_tensor, edge_index=edge_index_tensor)
     data.anchor_nodes = torch.from_numpy(anchor_nodes).long()
     data.dists = torch.from_numpy(dists).float()

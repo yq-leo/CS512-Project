@@ -278,7 +278,7 @@ class RankingLoss(torch.nn.Module):
 
 
 class ConsistencyLoss(torch.nn.Module):
-    def __init__(self, G1_data, G2_data, lambda_edge=5e-2, lambda_neigh=5, lambda_align=5e-1, margin=10, **kwargs):
+    def __init__(self, G1_data, G2_data, lambda_edge=3e-3, lambda_neigh=5, lambda_align=5e-1, margin=10, **kwargs):
         super(ConsistencyLoss, self).__init__()
 
         self.lambda_edge = lambda_edge
@@ -391,3 +391,158 @@ class RegularizedRankingLoss(RankingLoss):
                 inv[i] = 0
         return torch.diag(inv)
 
+
+class WeightedRankingLoss(torch.nn.Module):
+    def __init__(self, G1_data, G2_data, k, margin, dist_type='l1', alpha=0.1, **kwargs):
+        """
+        Marginal Ranking Loss
+        :param G1_data: PyG Data object for graph 1
+        :param G2_data: PyG Data object for graph 2
+        :param k: number of negative samples
+        :param margin: margin
+        :param dist_type: distance metric type
+        """
+        super(WeightedRankingLoss, self).__init__()
+        self.k = k
+        self.margin = margin
+        self.dist_type = dist_type
+
+        r1, r2 = G1_data.dists, G2_data.dists
+        x1 = G1_data.x if G1_data.x.shape[1] > 1 else G1_data.dists
+        x2 = G2_data.x if G2_data.x.shape[1] > 1 else G2_data.dists
+
+        r1, r2 = F.normalize(r1, p=2, dim=1), F.normalize(r2, p=2, dim=1)
+        x1, x2 = F.normalize(x1, p=2, dim=1), F.normalize(x2, p=2, dim=1)
+
+        ot_cost = alpha * torch.exp(-(r1 @ r2.T)) + (1 - alpha) * torch.exp(-(x1 @ x2.T))
+        self.ot_cost = ot_cost
+
+    def neg_sampling(self, out1, out2, anchor1, anchor2):
+        """
+        Negative sampling
+        :param out1: output node embeddings of graph 1
+        :param out2: output node embeddings of graph 2
+        :param anchor1: anchor nodes of graph 1
+        :param anchor2: anchor nodes of graph 2
+        :return:
+            neg_samples_1: negative samples of graph 1 -> (self.k, num of anchor nodes)
+            neg_samples_2: negative samples of graph 2 -> (self.k, num of anchor nodes)
+        """
+
+        anchor_embeddings_1 = out1[anchor1]
+        anchor_embeddings_2 = out2[anchor2]
+
+        distances_1 = compute_distance_matrix(anchor_embeddings_1, out2, self.dist_type)
+        ranks_1 = np.argsort(distances_1, axis=1)
+        neg_samples_1 = ranks_1[:, :self.k]
+
+        distances_2 = compute_distance_matrix(anchor_embeddings_2, out1, self.dist_type)
+        ranks_2 = np.argsort(distances_2, axis=1)
+        neg_samples_2 = ranks_2[:, :self.k]
+
+        return neg_samples_1, neg_samples_2
+
+    def forward(self, out1, out2, anchor1, anchor2):
+        np_out1 = out1.detach().cpu().numpy()
+        np_out2 = out2.detach().cpu().numpy()
+        anchor1 = np.array(anchor1)
+        anchor2 = np.array(anchor2)
+
+        neg_samples_1, neg_samples_2 = self.neg_sampling(np_out1, np_out2, anchor1, anchor2)
+
+        anchor_embeddings_1 = out1[anchor1]
+        anchor_embeddings_2 = out2[anchor2]
+        neg_embeddings_1 = out2[neg_samples_1, :]
+        neg_embeddings_2 = out1[neg_samples_2, :]
+
+        # Weight the negative samples
+        idx1 = torch.from_numpy(anchor1).unsqueeze(1).repeat(1, self.k)
+        idx2 = torch.from_numpy(anchor2).unsqueeze(1).repeat(1, self.k)
+        neg_embeddings_1 *= self.ot_cost[idx1, neg_samples_1].unsqueeze(-1)
+        neg_embeddings_2 *= self.ot_cost.T[idx2, neg_samples_2].unsqueeze(-1)
+
+        A = self.compute_dist(anchor_embeddings_1, anchor_embeddings_2)
+        D = A + self.margin
+        B1 = -self.compute_dist(anchor_embeddings_1.unsqueeze(1).repeat(1, self.k, 1).view(-1, anchor_embeddings_1.shape[-1]),
+                                neg_embeddings_1.view(-1, neg_embeddings_1.shape[-1]))
+        L1 = torch.sum(F.relu(D.unsqueeze(-1) + B1.view(-1, self.k)))
+        B2 = -self.compute_dist(anchor_embeddings_2.unsqueeze(1).repeat(1, self.k, 1).view(-1, anchor_embeddings_2.shape[-1]),
+                                neg_embeddings_2.view(-1, neg_embeddings_2.shape[-1]))
+        L2 = torch.sum(F.relu(D.unsqueeze(-1) + B2.view(-1, self.k)))
+
+        return (L1 + L2) / (anchor1.shape[0] * self.k)
+
+    def compute_dist(self, embedding1, embedding2):
+        assert self.dist_type in ['l1', 'cosine'], 'Similarity function not supported'
+
+        if self.dist_type == 'l1':
+            return torch.sum(torch.abs(embedding1 - embedding2), 1)
+        elif self.dist_type == 'cosine':
+            return 1 - torch.sum(embedding1 * embedding2, 1) / (torch.norm(embedding1, p=2, dim=1) * torch.norm(embedding2, p=2, dim=1))
+
+    @staticmethod
+    def pinv_diag(vec):
+        inv = 1 / vec
+        for i in range(len(inv)):
+            if inv[i] == torch.inf:
+                inv[i] = 0
+        return torch.diag(inv)
+
+
+class WeightedRegularizedRankingLoss(WeightedRankingLoss):
+    def __init__(self, G1_data, G2_data, k, margin, dist_type='l1', lambda_edge=3e-3, lambda_neigh=5, lambda_align=5e-1, **kwargs):
+        super(WeightedRegularizedRankingLoss, self).__init__(G1_data, G2_data, k, margin, dist_type)
+
+        self.lambda_reg = lambda_edge
+        self.lambda_neigh = lambda_neigh
+        self.lambda_align = lambda_align
+        self.alpha = 0.5
+
+        x1, x2 = F.normalize(G1_data.x, p=2, dim=1), F.normalize(G2_data.x, p=2, dim=1)
+        self.C1 = torch.exp(-(x1 @ x1.T)) * G1_data.adj
+        self.C2 = torch.exp(-(x2 @ x2.T)) * G2_data.adj
+        self.W1 = (self.pinv_diag(G1_data.adj.sum(1)) @ G1_data.adj).T
+        self.W2 = (self.pinv_diag(G2_data.adj.sum(1)) @ G2_data.adj).T
+
+        assert G1_data.anchor_nodes.shape[0] == G2_data.anchor_nodes.shape[0], \
+            'Number of anchor links of G1 and G2 should be the same'
+        self.H = torch.zeros(G1_data.x.shape[0], G2_data.x.shape[0]).float()
+        for i in range(G1_data.anchor_nodes.shape[0]):
+            self.H[G1_data.anchor_nodes[i], G2_data.anchor_nodes[i]] = 1
+
+    def forward(self, out1, out2, anchor1, anchor2):
+        ranking_loss = super(WeightedRegularizedRankingLoss, self).forward(out1, out2, anchor1, anchor2)
+
+        similarity = 1 - torch.exp(-(out1 @ out2.T))
+        edge_loss = self.compute_edge_loss(similarity)
+        neigh_loss = self.compute_neighborhood_loss(similarity)
+        align_loss = self.compute_alignment_loss(similarity)
+
+        return (self.alpha * ranking_loss + (1 - self.alpha) *
+                (self.lambda_reg * edge_loss + self.lambda_neigh * neigh_loss + self.lambda_align * align_loss))
+
+    def compute_edge_loss(self, similarity):
+        n1, n2 = similarity.shape
+        vec_u, vec_v = torch.ones(n1, 1) / n1, torch.ones(n2, 1) / n2
+        L = (self.C1 ** 2) @ vec_u @ torch.ones(n2, 1).T + torch.ones(n1, 1) @ vec_v.T @ (self.C2 ** 2) - 2 * self.C1 @ similarity @ self.C2.T
+        edge_loss = torch.sum(L * similarity) / (n1 * n2)
+        return edge_loss
+
+    def compute_neighborhood_loss(self, similarity):
+        n1, n2 = similarity.shape
+        neigh_similarity = self.W1.T @ similarity @ self.W2
+        neigh_loss = torch.sum((neigh_similarity - similarity) ** 2) / (n1 * n2)
+        return neigh_loss
+
+    def compute_alignment_loss(self, similarity):
+        n1, n2 = similarity.shape
+        align_loss = torch.sum((self.H - similarity) ** 2) / (n1 * n2)
+        return align_loss
+
+    @staticmethod
+    def pinv_diag(vec):
+        inv = 1 / vec
+        for i in range(len(inv)):
+            if inv[i] == torch.inf:
+                inv[i] = 0
+        return torch.diag(inv)
