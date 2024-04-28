@@ -32,7 +32,7 @@ def compute_ot_cost_matrix(G1_data, G2_data):
     :return: cost_rwr: cost matrix
     """
 
-    alpha = 0.05
+    alpha = 0.0
     beta = 0.15
     gamma = 0.8
 
@@ -44,29 +44,29 @@ def compute_ot_cost_matrix(G1_data, G2_data):
 
     cost_node = alpha * torch.exp(-(r1 @ r2.T)) + (1-alpha) * torch.exp(-(x1 @ x2.T))
 
-    A1, A2 = to_dense_adj(G1_data.edge_index)[0], to_dense_adj(G2_data.edge_index)[0]
-    D1_inv, D2_inv = torch.diag(1/degree(G1_data.edge_index[0])), torch.diag(1/degree(G2_data.edge_index[0]))
-    D1_inv[torch.where(torch.inf == D1_inv)] = 0
-    D2_inv[torch.where(torch.inf == D2_inv)] = 0
-    W1, W2 = (D1_inv @ A1).T, (D2_inv @ A2).T
-
-    cost_node[(G1_data.anchor_nodes, G2_data.anchor_nodes)] = 0
-    cost_rwr = torch.clone(cost_node)
+    # A1, A2 = to_dense_adj(G1_data.edge_index)[0], to_dense_adj(G2_data.edge_index)[0]
+    # D1_inv, D2_inv = torch.diag(1/degree(G1_data.edge_index[0])), torch.diag(1/degree(G2_data.edge_index[0]))
+    # D1_inv[torch.where(torch.inf == D1_inv)] = 0
+    # D2_inv[torch.where(torch.inf == D2_inv)] = 0
+    # W1, W2 = (D1_inv @ A1).T, (D2_inv @ A2).T
+    #
+    # cost_node[(G1_data.anchor_nodes, G2_data.anchor_nodes)] = 0
+    # cost_rwr = torch.clone(cost_node)
     # cost_rwr = torch.zeros_like(cost_node).float()
     # for a, x in zip(G1_data.anchor_nodes, G2_data.anchor_nodes):
     #     cost_rwr[a][x] = 1
 
-    cnt = 0
-    for i in tqdm(range(100), desc='Computing OT Cost'):
-        cost_rwr_prev = torch.clone(cost_rwr)
-        cost_rwr = (1 + beta) * cost_node + (1-beta) * gamma * (W1 @ cost_rwr @ W2.T)
-        cost_rwr[(G1_data.anchor_nodes, G2_data.anchor_nodes)] = 0
-        if torch.norm(cost_rwr - cost_rwr_prev) < 1e-6:
-            break
-        cnt += 1
-    print(f"OT Cost converged in {cnt} iterations")
+    # cnt = 0
+    # for i in tqdm(range(100), desc='Computing OT Cost'):
+    #     cost_rwr_prev = torch.clone(cost_rwr)
+    #     cost_rwr = (1 + beta) * cost_node + (1-beta) * gamma * (W1 @ cost_rwr @ W2.T)
+    #     cost_rwr[(G1_data.anchor_nodes, G2_data.anchor_nodes)] = 0
+    #     if torch.norm(cost_rwr - cost_rwr_prev) < 1e-6:
+    #         break
+    #     cnt += 1
+    # print(f"OT Cost converged in {cnt} iterations")
 
-    return cost_rwr
+    return cost_node
 
 
 def compute_metrics(distances1, distances2, test_pairs, hit_top_ks=(1, 5, 10, 30, 50, 100)):
