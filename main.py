@@ -51,52 +51,68 @@ if __name__ == '__main__':
     # out_dim = args.out_dim
     print(f"Model settings: {model_settings}")
 
-    model = PGNN(**model_settings).to(device)
-    # model = BRIGHT_U(anchor_dim, out_dim).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    criterion = globals()[f'{args.loss_func}Loss'](G1_data=G1_data,
-                                                   G2_data=G2_data,
-                                                   k=args.neg_sample_size,
-                                                   margin=args.margin,
-                                                   dist_type=args.dist_type).to(device)
-    scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs)
-
     # train model
     if not os.path.exists('logs'):
         os.makedirs('logs')
     writer = SummaryWriter(log_path(args.dataset, args.use_attr))
 
-    print("Training...")
-    max_hits = defaultdict(int)
-    max_mrr = 0
-    for epoch in range(args.epochs):
-        model.train()
-        optimizer.zero_grad()
-        G1_data.dists_max, G1_data.dists_argmax, G2_data.dists_max, G2_data.dists_argmax = (
-            preselect_anchor(G1_data, G2_data, random=args.random, c=args.c, device=device))
-        out1, out2 = model(G1_data, G2_data)
-        loss = criterion(out1=out1, out2=out2, anchor1=G1_data.anchor_nodes, anchor2=G2_data.anchor_nodes)
-        loss.backward()
-        optimizer.step()
-        print(f'Epoch: {epoch + 1}, Loss: {loss.item():.6f}', end=" ")
+    max_hits_list = defaultdict(list)
+    max_mrr_list = []
 
-        # testing
-        out1_np = out1.detach().cpu().numpy()
-        out2_np = out2.detach().cpu().numpy()
-        dissimilarity = compute_distance_matrix(out1_np, out2_np, dist_type=args.dist_type, use_attr=args.use_attr, x1=x1, x2=x2)
-        hits, mrr = compute_metrics(dissimilarity, test_pairs)
-        print(f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
-        max_mrr = max(max_mrr, mrr)
-        for key, value in hits.items():
-            max_hits[key] = max(max_hits[key], value)
+    for run in range(args.runs):
 
-        writer.add_scalar('Loss', loss.item(), epoch)
-        writer.add_scalar('MRR', mrr, epoch)
-        for key, value in hits.items():
-            writer.add_scalar(f'Hits/Hits@{key}', value, epoch)
+        model = PGNN(**model_settings).to(device)
+        # model = BRIGHT_U(anchor_dim, out_dim).to(device)
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+        criterion = globals()[f'{args.loss_func}Loss'](G1_data=G1_data,
+                                                       G2_data=G2_data,
+                                                       k=args.neg_sample_size,
+                                                       margin=args.margin,
+                                                       dist_type=args.dist_type).to(device)
+        scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs)
 
-        scheduler.step()
+        print("Training...")
+        max_hits = defaultdict(int)
+        max_mrr = 0
+        for epoch in range(args.epochs):
+            model.train()
+            optimizer.zero_grad()
+            G1_data.dists_max, G1_data.dists_argmax, G2_data.dists_max, G2_data.dists_argmax = (
+                preselect_anchor(G1_data, G2_data, random=args.random, c=args.c, device=device))
+            out1, out2 = model(G1_data, G2_data)
+            loss = criterion(out1=out1, out2=out2, anchor1=G1_data.anchor_nodes, anchor2=G2_data.anchor_nodes)
+            loss.backward()
+            optimizer.step()
+            print(f'Epoch: {epoch + 1}, Loss: {loss.item():.6f}', end=" ")
 
+            # testing
+            out1_np = out1.detach().cpu().numpy()
+            out2_np = out2.detach().cpu().numpy()
+            dissimilarity = compute_distance_matrix(out1_np, out2_np, dist_type=args.dist_type, use_attr=args.use_attr, x1=x1, x2=x2)
+            hits, mrr = compute_metrics(dissimilarity, test_pairs)
+            print(f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
+            max_mrr = max(max_mrr, mrr)
+            for key, value in hits.items():
+                max_hits[key] = max(max_hits[key], value)
+
+            writer.add_scalar('Loss', loss.item(), epoch)
+            writer.add_scalar('MRR', mrr, epoch)
+            for key, value in hits.items():
+                writer.add_scalar(f'Hits/Hits@{key}', value, epoch)
+
+            scheduler.step()
+
+        for key, value in max_hits.items():
+            max_hits_list[key].append(value)
+        max_mrr_list.append(max_mrr)
+
+    max_hits = {}
+    max_hits_std = {}
+    for key, value in max_hits_list.items():
+        max_hits[key] = np.array(value).mean()
+        max_hits_std[key] = np.array(value).std()
+    max_mrr = np.array(max_mrr_list).mean()
+    max_mrr_std = np.array(max_mrr_list).std()
     writer.add_hparams(vars(args), {'hparam/MRR': max_mrr, **{f'hparam/Hits@{key}': value for key, value in max_hits.items()}})
 
     writer.close()
