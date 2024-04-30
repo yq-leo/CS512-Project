@@ -11,8 +11,8 @@ def make_args():
                         help='training ratio: 0.1; 0.2')
     parser.add_argument('--use_attr', dest='use_attr', default=False, action='store_true',
                         help='use input node attributes')
-    parser.add_argument('--distance', dest='distance', type=str, default='rwr',
-                        choices=['rwr', 'otcost'],
+    parser.add_argument('--distance', dest='distance', type=str, default='conductance',
+                        choices=['rwr', 'otcost', 'simRank', "conductance"],
                         help='distance metric: rwr; otcost')
     parser.add_argument('--gpu', dest='device', action='store_const', const='cuda:0', default='cpu',
                         help='use GPU')
