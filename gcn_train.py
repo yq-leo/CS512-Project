@@ -87,7 +87,7 @@ if __name__ == '__main__':
         if mrr > max_mrr:
             if not os.path.exists('gcn_out'):
                 os.makedirs('gcn_out')
-            np.savez(f'gcn_out/{args.dataset}_gcn_results.npz', x1=out1_np, x2=out2_np)
+            np.savez(f'gcn_out/{args.dataset}_gcn_results_{args.num_gcn_layers}_layers.npz', x1=out1_np, x2=out2_np)
 
         max_mrr = max(max_mrr, mrr)
         for key, value in hits.items():
