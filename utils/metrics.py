@@ -24,7 +24,7 @@ def compute_distance_matrix(embedding1, embedding2, dist_type='l1'):
         return scipy.spatial.distance.cdist(embedding1, embedding2, metric='cosine')
 
 
-def compute_ot_cost_matrix(G1_data, G2_data):
+def compute_ot_cost_matrix(G1_data, G2_data, alpha=0.1):
     """
     Compute optimal transport cost matrix between two sets of embeddings
     :param G1_data: PyG Data object for graph 1
@@ -32,7 +32,6 @@ def compute_ot_cost_matrix(G1_data, G2_data):
     :return: cost_rwr: cost matrix
     """
 
-    alpha = 0.0
     beta = 0.15
     gamma = 0.8
 

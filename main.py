@@ -27,12 +27,16 @@ if __name__ == '__main__':
     # build PyG Data objects
     G1_data = build_tg_graph(G1.number_of_nodes(), edge_index1, x1, anchor_links[:, 0], dists_score1).to(device)
     G2_data = build_tg_graph(G2.number_of_nodes(), edge_index2, x2, anchor_links[:, 1], dists_score2).to(device)
+    # gcn_output = np.load(f'gcn_out/{args.dataset}_gcn_results_{args.num_gcn_layers}_layers.npz')
+    # G1_data.x = torch.tensor(gcn_output['x1'], dtype=torch.float).to(device)
+    # G2_data.x = torch.tensor(gcn_output['x2'], dtype=torch.float).to(device)
 
     # compute OT cost
     print("Computing OT cost...")
-    cost_rwr = compute_ot_cost_matrix(G1_data, G2_data).cpu().numpy()
-    hits, mrr = compute_metrics(cost_rwr[test_pairs[:, 0]], cost_rwr.T[test_pairs[:, 1]], test_pairs)
-    print(f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
+    for alpha in [0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+        cost_rwr = compute_ot_cost_matrix(G1_data, G2_data, alpha).cpu().numpy()
+        hits, mrr = compute_metrics(cost_rwr[test_pairs[:, 0]], cost_rwr.T[test_pairs[:, 1]], test_pairs)
+        print(f'alpha={alpha}-{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
 
 
 
