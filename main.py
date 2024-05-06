@@ -27,9 +27,10 @@ if __name__ == '__main__':
     # build PyG Data objects
     G1_data = build_tg_graph(G1.number_of_nodes(), edge_index1, x1, anchor_links[:, 0], dists_score1).to(device)
     G2_data = build_tg_graph(G2.number_of_nodes(), edge_index2, x2, anchor_links[:, 1], dists_score2).to(device)
-    # gcn_output = np.load(f'gcn_out/{args.dataset}_gcn_results_{args.num_gcn_layers}_layers.npz')
-    # G1_data.x = torch.tensor(gcn_output['x1'], dtype=torch.float).to(device)
-    # G2_data.x = torch.tensor(gcn_output['x2'], dtype=torch.float).to(device)
+    if args.use_gcn:
+        gcn_output = np.load(f'gcn_out/{args.dataset}_gcn_results_{args.num_gcn_layers}_layers.npz')
+        G1_data.x = torch.tensor(gcn_output['x1'], dtype=torch.float).to(device)
+        G2_data.x = torch.tensor(gcn_output['x2'], dtype=torch.float).to(device)
 
     # compute OT cost
     print("Computing OT cost...")
