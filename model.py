@@ -192,6 +192,13 @@ class PGNN(torch.nn.Module):
         return x1_position, x2_position
 
 
+class PGNA_A(PGNN):
+    def __init__(self, input_dim, feature_dim, anchor_dim, hidden_dim, output_dim,
+                 feature_pre=False, num_layers=2, use_dropout=False, num_gcn_layers=1, **kwargs):
+        super(PGNA_A, self).__init__(input_dim, feature_dim, anchor_dim, hidden_dim, output_dim,
+                                     feature_pre=False, num_layers=2, use_dropout=False, **kwargs)
+
+
 class BRIGHT_U(torch.nn.Module):
     def __init__(self, rwr_dim, dim):
         super(BRIGHT_U, self).__init__()
@@ -207,17 +214,19 @@ class BRIGHT_U(torch.nn.Module):
 
 
 class RankingLoss(torch.nn.Module):
-    def __init__(self, k, margin, dist_type='l1', **kwargs):
+    def __init__(self, k, margin, dist_type='l1', device='cpu', **kwargs):
         """
         Marginal Ranking Loss
         :param k: number of negative samples
         :param margin: margin
         :param dist_type: distance metric type
+        :param device: device
         """
         super(RankingLoss, self).__init__()
         self.k = k
         self.margin = margin
         self.dist_type = dist_type
+        self.device = device
 
     def neg_sampling(self, out1, out2, anchor1, anchor2):
         """
@@ -278,19 +287,20 @@ class RankingLoss(torch.nn.Module):
 
 
 class ConsistencyLoss(torch.nn.Module):
-    def __init__(self, G1_data, G2_data, lambda_edge=3e-3, lambda_neigh=5, lambda_align=5e-1, margin=10, **kwargs):
+    def __init__(self, G1_data, G2_data, device='cpu', lambda_edge=1e-3, lambda_neigh=4e-2, lambda_align=1, margin=10, **kwargs):
         super(ConsistencyLoss, self).__init__()
 
         self.lambda_edge = lambda_edge
         self.lambda_neigh = lambda_neigh
         self.lambda_align = lambda_align
         self.margin = margin
+        self.device = device
 
         x1, x2 = F.normalize(G1_data.x, p=2, dim=1), F.normalize(G2_data.x, p=2, dim=1)
-        self.C1 = torch.exp(-(x1 @ x1.T)) * G1_data.adj
-        self.C2 = torch.exp(-(x2 @ x2.T)) * G2_data.adj
-        self.W1 = (self.pinv_diag(G1_data.adj.sum(1)) @ G1_data.adj).T
-        self.W2 = (self.pinv_diag(G2_data.adj.sum(1)) @ G2_data.adj).T
+        self.C1 = (torch.exp(-(x1 @ x1.T)) * G1_data.adj).to(self.device)
+        self.C2 = (torch.exp(-(x2 @ x2.T)) * G2_data.adj).to(self.device)
+        self.W1 = (self.pinv_diag(G1_data.adj.sum(1)) @ G1_data.adj).T.to(self.device)
+        self.W2 = (self.pinv_diag(G2_data.adj.sum(1)) @ G2_data.adj).T.to(self.device)
 
         assert G1_data.anchor_nodes.shape[0] == G2_data.anchor_nodes.shape[0], \
             'Number of anchor links of G1 and G2 should be the same'
@@ -298,6 +308,7 @@ class ConsistencyLoss(torch.nn.Module):
         for i in range(G1_data.anchor_nodes.shape[0]):
             self.H[G1_data.anchor_nodes[i], G2_data.anchor_nodes[i]] = 1
         self.H /= G1_data.anchor_nodes.shape[0]
+        self.H = self.H.to(device)
 
     def forward(self, out1, out2, **kwargs):
         similarity = 1 - torch.exp(-(out1 @ out2.T))
@@ -308,8 +319,9 @@ class ConsistencyLoss(torch.nn.Module):
 
     def compute_edge_loss(self, similarity):
         n1, n2 = similarity.shape
-        vec_u, vec_v = torch.ones(n1, 1) / n1, torch.ones(n2, 1) / n2
-        L = (self.C1 ** 2) @ vec_u @ torch.ones(n2, 1).T + torch.ones(n1, 1) @ vec_v.T @ (self.C2 ** 2) - 2 * self.C1 @ similarity @ self.C2.T
+        vec_u = torch.ones(n1, 1).to(self.device) / n1
+        vec_v = torch.ones(n2, 1).to(self.device) / n2
+        L = (self.C1 ** 2) @ vec_u @ (vec_v * n2).T + (vec_u * n1) @ vec_v.T @ (self.C2 ** 2) - 2 * self.C1 @ similarity @ self.C2.T
         edge_loss = torch.sum(L * similarity) / (n1 * n2)
         return edge_loss
 
@@ -334,13 +346,15 @@ class ConsistencyLoss(torch.nn.Module):
 
 
 class RegularizedRankingLoss(RankingLoss):
-    def __init__(self, G1_data, G2_data, k, margin, dist_type='l1', lambda_edge=3e-3, lambda_neigh=5, lambda_align=5e-1, **kwargs):
-        super(RegularizedRankingLoss, self).__init__(k, margin, dist_type)
+    def __init__(self, G1_data, G2_data, k, margin, dist_type='l1', lambda_rank=0.5,
+                 lambda_edge=1e-3, lambda_neigh=4e-2, lambda_align=1,
+                 device='cpu', **kwargs):
+        super(RegularizedRankingLoss, self).__init__(k, margin, dist_type, device=device)
 
         self.lambda_reg = lambda_edge
         self.lambda_neigh = lambda_neigh
         self.lambda_align = lambda_align
-        self.alpha = 0.5
+        self.lambda_rank = lambda_rank
 
         x1, x2 = F.normalize(G1_data.x, p=2, dim=1), F.normalize(G2_data.x, p=2, dim=1)
         self.C1 = torch.exp(-(x1 @ x1.T)) * G1_data.adj
@@ -362,25 +376,29 @@ class RegularizedRankingLoss(RankingLoss):
         neigh_loss = self.compute_neighborhood_loss(similarity)
         align_loss = self.compute_alignment_loss(similarity)
 
-        return (self.alpha * ranking_loss + (1 - self.alpha) *
+        return (self.lambda_rank * ranking_loss + (1 - self.lambda_rank) *
                 (self.lambda_reg * edge_loss + self.lambda_neigh * neigh_loss + self.lambda_align * align_loss))
 
     def compute_edge_loss(self, similarity):
         n1, n2 = similarity.shape
-        vec_u, vec_v = torch.ones(n1, 1) / n1, torch.ones(n2, 1) / n2
-        L = (self.C1 ** 2) @ vec_u @ torch.ones(n2, 1).T + torch.ones(n1, 1) @ vec_v.T @ (self.C2 ** 2) - 2 * self.C1 @ similarity @ self.C2.T
+        vec_u = torch.ones(n1, 1).to(self.device) / n1
+        vec_v = torch.ones(n2, 1).to(self.device) / n2
+        C1, C2 = self.C1.to(self.device), self.C2.to(self.device)
+        L = (C1 ** 2) @ vec_u @ (vec_v * n2).T + (vec_u * n1) @ vec_v.T @ (C2 ** 2) - 2 * C1 @ similarity @ C2.T
         edge_loss = torch.sum(L * similarity) / (n1 * n2)
         return edge_loss
 
     def compute_neighborhood_loss(self, similarity):
         n1, n2 = similarity.shape
-        neigh_similarity = self.W1.T @ similarity @ self.W2
+        W1, W2 = self.W1.to(self.device), self.W2.to(self.device)
+        neigh_similarity = W1.T @ similarity @ W2
         neigh_loss = torch.sum((neigh_similarity - similarity) ** 2) / (n1 * n2)
         return neigh_loss
 
     def compute_alignment_loss(self, similarity):
         n1, n2 = similarity.shape
-        align_loss = torch.sum((self.H - similarity) ** 2) / (n1 * n2)
+        H = self.H.to(self.device)
+        align_loss = torch.sum((H - similarity) ** 2) / (n1 * n2)
         return align_loss
 
     @staticmethod
@@ -393,7 +411,7 @@ class RegularizedRankingLoss(RankingLoss):
 
 
 class WeightedRankingLoss(torch.nn.Module):
-    def __init__(self, G1_data, G2_data, k, margin, dist_type='l1', alpha=0.1, **kwargs):
+    def __init__(self, G1_data, G2_data, k, margin, dist_type='l1', alpha=0.1, device='cpu', **kwargs):
         """
         Marginal Ranking Loss
         :param G1_data: PyG Data object for graph 1
@@ -406,6 +424,7 @@ class WeightedRankingLoss(torch.nn.Module):
         self.k = k
         self.margin = margin
         self.dist_type = dist_type
+        self.device = device
 
         r1, r2 = G1_data.dists, G2_data.dists
         x1 = G1_data.x if G1_data.x.shape[1] > 1 else G1_data.dists
@@ -415,7 +434,7 @@ class WeightedRankingLoss(torch.nn.Module):
         x1, x2 = F.normalize(x1, p=2, dim=1), F.normalize(x2, p=2, dim=1)
 
         ot_cost = alpha * torch.exp(-(r1 @ r2.T)) + (1 - alpha) * torch.exp(-(x1 @ x2.T))
-        self.ot_cost = ot_cost
+        self.ot_cost = ot_cost.to(self.device)
 
     def neg_sampling(self, out1, out2, anchor1, anchor2):
         """
@@ -456,8 +475,8 @@ class WeightedRankingLoss(torch.nn.Module):
         neg_embeddings_2 = out1[neg_samples_2, :]
 
         # Weight the negative samples
-        idx1 = torch.from_numpy(anchor1).unsqueeze(1).repeat(1, self.k)
-        idx2 = torch.from_numpy(anchor2).unsqueeze(1).repeat(1, self.k)
+        idx1 = torch.from_numpy(anchor1).unsqueeze(1).repeat(1, self.k).to(self.device)
+        idx2 = torch.from_numpy(anchor2).unsqueeze(1).repeat(1, self.k).to(self.device)
         neg_embeddings_1 *= self.ot_cost[idx1, neg_samples_1].unsqueeze(-1)
         neg_embeddings_2 *= self.ot_cost.T[idx2, neg_samples_2].unsqueeze(-1)
 
@@ -490,25 +509,28 @@ class WeightedRankingLoss(torch.nn.Module):
 
 
 class WeightedRegularizedRankingLoss(WeightedRankingLoss):
-    def __init__(self, G1_data, G2_data, k, margin, dist_type='l1', lambda_edge=3e-3, lambda_neigh=5, lambda_align=5e-1, **kwargs):
-        super(WeightedRegularizedRankingLoss, self).__init__(G1_data, G2_data, k, margin, dist_type)
+    def __init__(self, G1_data, G2_data, k, margin, dist_type='l1', lambda_rank=0.5,
+                 lambda_edge=1e-3, lambda_neigh=4e-2, lambda_align=1,
+                 device='cpu', **kwargs):
+        super(WeightedRegularizedRankingLoss, self).__init__(G1_data, G2_data, k, margin, dist_type, device=device)
 
         self.lambda_reg = lambda_edge
         self.lambda_neigh = lambda_neigh
         self.lambda_align = lambda_align
-        self.alpha = 0.5
+        self.lambda_rank = lambda_rank
 
         x1, x2 = F.normalize(G1_data.x, p=2, dim=1), F.normalize(G2_data.x, p=2, dim=1)
-        self.C1 = torch.exp(-(x1 @ x1.T)) * G1_data.adj
-        self.C2 = torch.exp(-(x2 @ x2.T)) * G2_data.adj
-        self.W1 = (self.pinv_diag(G1_data.adj.sum(1)) @ G1_data.adj).T
-        self.W2 = (self.pinv_diag(G2_data.adj.sum(1)) @ G2_data.adj).T
+        self.C1 = (torch.exp(-(x1 @ x1.T)) * G1_data.adj).to(self.device)
+        self.C2 = (torch.exp(-(x2 @ x2.T)) * G2_data.adj).to(self.device)
+        self.W1 = (self.pinv_diag(G1_data.adj.sum(1)) @ G1_data.adj).T.to(self.device)
+        self.W2 = (self.pinv_diag(G2_data.adj.sum(1)) @ G2_data.adj).T.to(self.device)
 
         assert G1_data.anchor_nodes.shape[0] == G2_data.anchor_nodes.shape[0], \
             'Number of anchor links of G1 and G2 should be the same'
         self.H = torch.zeros(G1_data.x.shape[0], G2_data.x.shape[0]).float()
         for i in range(G1_data.anchor_nodes.shape[0]):
             self.H[G1_data.anchor_nodes[i], G2_data.anchor_nodes[i]] = 1
+        self.H = self.H.to(self.device)
 
     def forward(self, out1, out2, anchor1, anchor2):
         ranking_loss = super(WeightedRegularizedRankingLoss, self).forward(out1, out2, anchor1, anchor2)
@@ -518,13 +540,14 @@ class WeightedRegularizedRankingLoss(WeightedRankingLoss):
         neigh_loss = self.compute_neighborhood_loss(similarity)
         align_loss = self.compute_alignment_loss(similarity)
 
-        return (self.alpha * ranking_loss + (1 - self.alpha) *
+        return (self.lambda_rank * ranking_loss + (1 - self.lambda_rank) *
                 (self.lambda_reg * edge_loss + self.lambda_neigh * neigh_loss + self.lambda_align * align_loss))
 
     def compute_edge_loss(self, similarity):
         n1, n2 = similarity.shape
-        vec_u, vec_v = torch.ones(n1, 1) / n1, torch.ones(n2, 1) / n2
-        L = (self.C1 ** 2) @ vec_u @ torch.ones(n2, 1).T + torch.ones(n1, 1) @ vec_v.T @ (self.C2 ** 2) - 2 * self.C1 @ similarity @ self.C2.T
+        vec_u = torch.ones(n1, 1).to(self.device) / n1
+        vec_v = torch.ones(n2, 1).to(self.device) / n2
+        L = (self.C1 ** 2) @ vec_u @ (vec_v * n2).T + (vec_u * n1) @ vec_v.T @ (self.C2 ** 2) - 2 * self.C1 @ similarity @ self.C2.T
         edge_loss = torch.sum(L * similarity) / (n1 * n2)
         return edge_loss
 

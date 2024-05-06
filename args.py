@@ -14,7 +14,7 @@ def make_args():
     parser.add_argument('--distance', dest='distance', type=str, default='rwr',
                         choices=['rwr', 'otcost'],
                         help='distance metric: rwr; otcost')
-    parser.add_argument('--gpu', dest='device', action='store_const', const='cuda:0', default='cpu',
+    parser.add_argument('--gpu', dest='device', action='store_const', const='cuda', default='cpu',
                         help='use GPU')
     parser.add_argument('--lr', dest='lr', type=float, default=1e-3, help='learning_rate')
     parser.add_argument('--epochs', dest='epochs', type=int, default=250, help='number of epochs')
@@ -43,6 +43,7 @@ def make_args():
     parser.add_argument('--margin', dest='margin', type=float, default=10, help='margin parameter of ranking loss')
     parser.add_argument('--dist_type', dest='dist_type', type=str, default='l1',
                         choices=['l1', 'cosine'], help='distance metric type (between two embeddings)')
+    parser.add_argument('--lambda_rank', dest='lambda_rank', type=float, default=0.5, help='ranking loss weight')
     parser.add_argument('--lambda_edge', dest='lambda_edge', type=float, default=1e-2, help='edge loss weight')
     parser.add_argument('--lambda_node', dest='lambda_node', type=float, default=1e-1, help='node loss weight')
     parser.add_argument('--lambda_align', dest='lambda_align', type=float, default=1, help='alignment loss weight')

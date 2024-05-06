@@ -1,6 +1,7 @@
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.tensorboard import SummaryWriter
 from collections import defaultdict
+import time
 
 from utils import *
 from args import *
@@ -29,8 +30,9 @@ if __name__ == '__main__':
     device = torch.device(args.device)
 
     # build PyG Data objects
-    G1_data = build_tg_graph(G1.number_of_nodes(), edge_index1, G1.x, anchor_links[:, 0], dists_score1).to(device)
-    G2_data = build_tg_graph(G2.number_of_nodes(), edge_index2, G2.x, anchor_links[:, 1], dists_score2).to(device)
+    anchor1, anchor2 = anchor_links[:, 0], anchor_links[:, 1]
+    G1_data = build_tg_graph(G1.number_of_nodes(), edge_index1, G1.x, anchor1, dists_score1).to(device)
+    G2_data = build_tg_graph(G2.number_of_nodes(), edge_index2, G2.x, anchor2, dists_score2).to(device)
 
     # model setting
     model_settings = {
@@ -68,19 +70,23 @@ if __name__ == '__main__':
                                                        G2_data=G2_data,
                                                        k=args.neg_sample_size,
                                                        margin=args.margin,
-                                                       dist_type=args.dist_type).to(device)
+                                                       lambda_rank=args.lambda_rank,
+                                                       dist_type=args.dist_type,
+                                                       device=device).to(device)
         scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs)
+
+        G1_data.dists_max, G1_data.dists_argmax, G2_data.dists_max, G2_data.dists_argmax = (
+            preselect_anchor(G1_data, G2_data, random=args.random, c=args.c, device=device))
 
         print("Training...")
         max_hits = defaultdict(int)
         max_mrr = 0
         for epoch in range(args.epochs):
             model.train()
+            start = time.time()
             optimizer.zero_grad()
-            G1_data.dists_max, G1_data.dists_argmax, G2_data.dists_max, G2_data.dists_argmax = (
-                preselect_anchor(G1_data, G2_data, random=args.random, c=args.c, device=device))
             out1, out2 = model(G1_data, G2_data)
-            loss = criterion(out1=out1, out2=out2, anchor1=G1_data.anchor_nodes, anchor2=G2_data.anchor_nodes)
+            loss = criterion(out1=out1, out2=out2, anchor1=anchor1, anchor2=anchor2)
             loss.backward()
             optimizer.step()
             print(f'Epoch: {epoch + 1}, Loss: {loss.item():.6f}', end=" ")
@@ -90,7 +96,8 @@ if __name__ == '__main__':
             out2_np = out2.detach().cpu().numpy()
             dissimilarity = compute_distance_matrix(out1_np, out2_np, dist_type=args.dist_type, use_attr=args.use_attr, x1=x1, x2=x2)
             hits, mrr = compute_metrics(dissimilarity, test_pairs)
-            print(f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
+            end = time.time()
+            print(f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}, Time: {end - start:.2f}s')
             max_mrr = max(max_mrr, mrr)
             for key, value in hits.items():
                 max_hits[key] = max(max_hits[key], value)

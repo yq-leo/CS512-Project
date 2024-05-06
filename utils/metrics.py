@@ -1,5 +1,6 @@
 import numpy as np
 import scipy
+import torch
 import os
 
 
@@ -20,7 +21,10 @@ def compute_distance_matrix(embedding1, embedding2, dist_type='l1', use_attr=Fal
     if dist_type == 'l1':
         dists = scipy.spatial.distance.cdist(embedding1, embedding2, metric='cityblock')
     elif dist_type == 'cosine':
-        dists = scipy.spatial.distance.cdist(embedding1, embedding2, metric='cosine')
+        r1 = embedding1 / np.linalg.norm(embedding1, ord=2, axis=1, keepdims=True)
+        r2 = embedding2 / np.linalg.norm(embedding2, ord=2, axis=1, keepdims=True)
+        dists = 1 - r1 @ r2.T
+        # dists = scipy.spatial.distance.cdist(embedding1, embedding2, metric='cosine')
 
     if use_attr:
         assert x1 is not None and x2 is not None, 'Node attributes are not provided'
@@ -50,8 +54,10 @@ def compute_metrics(dissimilarity, test_pairs, hit_top_ks=(1, 5, 10, 30, 50, 100
 
     hits = {}
 
-    ranks1 = np.argsort(distances1, axis=1)
-    ranks2 = np.argsort(distances2, axis=1)
+    # ranks1 = np.argsort(distances1, axis=1)
+    # ranks2 = np.argsort(distances2, axis=1)
+    ranks1 = torch.argsort(torch.from_numpy(distances1), dim=1).numpy()
+    ranks2 = torch.argsort(torch.from_numpy(distances2), dim=1).numpy()
 
     signal1_hit = ranks1[:, :hit_top_ks[-1]] == np.expand_dims(test_pairs[:, 1], -1)
     signal2_hit = ranks2[:, :hit_top_ks[-1]] == np.expand_dims(test_pairs[:, 0], -1)
