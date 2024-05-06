@@ -53,5 +53,7 @@ def make_args():
     parser.add_argument('--c', dest='c', type=int, default=1, help='c parameter of anchor dimension')
 
     parser.add_argument('--runs', dest='runs', type=int, default=1, help='number of runs')
+    parser.add_argument('--use_gcn', dest='use_gcn', default=False, action='store_true', help='use GCN for ablation study')
+    parser.add_argument('--num_gcn_layers', dest='num_gcn_layers', type=int, default=1, help='number of GCN layers')
     args = parser.parse_args()
     return args

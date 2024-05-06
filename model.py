@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch_geometric.nn import GCNConv
 import numpy as np
 import scipy
 
@@ -192,11 +193,23 @@ class PGNN(torch.nn.Module):
         return x1_position, x2_position
 
 
-class PGNA_A(PGNN):
-    def __init__(self, input_dim, feature_dim, anchor_dim, hidden_dim, output_dim,
-                 feature_pre=False, num_layers=2, use_dropout=False, num_gcn_layers=1, **kwargs):
-        super(PGNA_A, self).__init__(input_dim, feature_dim, anchor_dim, hidden_dim, output_dim,
-                                     feature_pre=False, num_layers=2, use_dropout=False, **kwargs)
+class GCN(torch.nn.Module):
+    def __init__(self, input_dim, output_dim, num_layers=1, **kwargs):
+        super(GCN, self).__init__()
+        self.num_layers = num_layers
+        self.gcn_in = GCNConv(input_dim, output_dim)
+        self.gcn = nn.ModuleList([GCNConv(output_dim, output_dim)] * (num_layers - 1))
+
+    def forward(self, G1_data, G2_data):
+        x1, x2 = G1_data.x, G2_data.x
+        x1 = self.gcn_in(x1, G1_data.edge_index)
+        x2 = self.gcn_in(x2, G2_data.edge_index)
+        for i in range(self.num_layers - 1):
+            x1 = self.gcn[i](x1, G1_data.edge_index)
+            x2 = self.gcn[i](x2, G2_data.edge_index)
+        x1 = F.normalize(x1, p=2, dim=-1)
+        x2 = F.normalize(x2, p=2, dim=-1)
+        return x1, x2
 
 
 class BRIGHT_U(torch.nn.Module):
