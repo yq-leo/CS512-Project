@@ -32,7 +32,7 @@ def compute_distance_matrix(embedding1, embedding2, dist_type='l1', use_attr=Fal
         r2 = embedding2 / np.linalg.norm(embedding2, ord=2, axis=1, keepdims=True)
         x1 = x1 / np.linalg.norm(x1, ord=2, axis=1, keepdims=True)
         x2 = x2 / np.linalg.norm(x2, ord=2, axis=1, keepdims=True)
-        alpha = 0.1
+        alpha = 0.05
         dists = alpha * np.exp(-(r1 @ r2.T)) + (1 - alpha) * np.exp(-(x1 @ x2.T))
 
     return dists

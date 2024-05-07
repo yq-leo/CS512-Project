@@ -360,7 +360,7 @@ class ConsistencyLoss(torch.nn.Module):
 
 class RegularizedRankingLoss(RankingLoss):
     def __init__(self, G1_data, G2_data, k, margin, dist_type='l1', lambda_rank=0.5,
-                 lambda_edge=1e-3, lambda_neigh=4e-2, lambda_align=1,
+                 lambda_edge=1e-3, lambda_neigh=10, lambda_align=2,
                  device='cpu', **kwargs):
         super(RegularizedRankingLoss, self).__init__(k, margin, dist_type, device=device)
 
