@@ -1,4 +1,4 @@
-# P-GNN for Network Alignment
+# Position-aware GNN for Network Alignment
 
 CS512 Projects
 
@@ -7,8 +7,6 @@ CS512 Projects
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. 
 
 ### Prerequisites
-
-What things you need to install the software and how to install them:
 
 - numpy
 - networkx
@@ -31,7 +29,7 @@ git clone https://github.com/yq-leo/CS512-Project.git
 2. Navigate to the project directory:
 
 ```sh
-cd CS512-Project
+cd PGNA
 ```
 
 3. Install the required dependencies:
