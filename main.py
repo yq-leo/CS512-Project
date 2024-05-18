@@ -38,6 +38,3 @@ if __name__ == '__main__':
         cost_rwr = compute_ot_cost_matrix(G1_data, G2_data, alpha).cpu().numpy()
         hits, mrr = compute_metrics(cost_rwr[test_pairs[:, 0]], cost_rwr.T[test_pairs[:, 1]], test_pairs)
         print(f'alpha={alpha}-{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
-
-
-
