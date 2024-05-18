@@ -20,7 +20,6 @@ if __name__ == '__main__':
     print("Loading data...")
     edge_index1, edge_index2, x1, x2, anchor_links, test_pairs = load_data(f"datasets/{args.dataset}", args.ratio, args.use_attr)
     G1, G2 = build_nx_graph(edge_index1, anchor_links[:, 0], x1), build_nx_graph(edge_index2, anchor_links[:, 0], x2)
-    num_anchor_links = anchor_links.shape[0]
 
     # compute distance metric scores (e.g. random walk with restart (rwr))
     dists_score1, dists_score2 = get_distance_matrix(G1, G2, anchor_links, args.dataset, args.ratio, args.distance)
@@ -38,7 +37,7 @@ if __name__ == '__main__':
     model_settings = {
         "input_dim": G1_data.x.shape[1],
         "feature_dim": args.feat_dim,
-        "anchor_dim": args.c * int(np.log2(num_anchor_links)) ** 2 if args.random else num_anchor_links,
+        "anchor_dim": args.c * int(np.log2(anchor_links.shape[0])) ** 2 if args.random else anchor_links.shape[0],
         "hidden_dim": args.hidden_dim,
         "output_dim": args.out_dim,
         "feature_pre": args.feature_pre,
@@ -49,8 +48,6 @@ if __name__ == '__main__':
         "mcf_type": args.mcf_type,
         "agg_type": args.agg_type
     }
-    # anchor_dim = num_anchor_links
-    # out_dim = args.out_dim
     print(f"Model settings: {model_settings}")
 
     # train model
@@ -64,7 +61,6 @@ if __name__ == '__main__':
     for run in range(args.runs):
 
         model = PGNN(**model_settings).to(device)
-        # model = BRIGHT_U(anchor_dim, out_dim).to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         criterion = globals()[f'{args.loss_func}Loss'](G1_data=G1_data,
                                                        G2_data=G2_data,
