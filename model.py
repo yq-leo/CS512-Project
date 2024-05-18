@@ -127,12 +127,6 @@ class Nonlinear(nn.Module):
 
         self.act = nn.ReLU()
 
-        # for m in self.modules():
-        #     if isinstance(m, nn.Linear):
-        #         m.weight.data = nn.init.xavier_uniform_(m.weight.data, gain=nn.init.calculate_gain('relu'))
-        #         if m.bias is not None:
-        #             m.bias.data = nn.init.constant_(m.bias.data, 0.0)
-
     def forward(self, x):
         x = self.linear1(x)
         x = self.act(x)
