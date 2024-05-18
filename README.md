@@ -1,4 +1,4 @@
-# Position-aware GNN for Network Alignment
+# Position-aware GNN with Consistency Regularizations for Network Alignment
 
 CS512 Projects
 
