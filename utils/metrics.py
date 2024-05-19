@@ -4,11 +4,12 @@ import torch
 import os
 
 
-def compute_distance_matrix(embedding1, embedding2, dist_type='l1', use_attr=False, x1=None, x2=None):
+def compute_distance_matrix(embedding1, embedding2, alpha=0.1, dist_type='l1', use_attr=False, x1=None, x2=None):
     """
     Compute distance matrix between two sets of embeddings
     :param embedding1: node embeddings of graph 1
     :param embedding2: node embeddings of graph 2
+    :param alpha: weight for the distance between embeddings and node attributes
     :param dist_type: distance function
     :param use_attr: whether it's attributed network
     :param x1: node attributes of graph 1
@@ -32,7 +33,6 @@ def compute_distance_matrix(embedding1, embedding2, dist_type='l1', use_attr=Fal
         r2 = embedding2 / np.linalg.norm(embedding2, ord=2, axis=1, keepdims=True)
         x1 = x1 / np.linalg.norm(x1, ord=2, axis=1, keepdims=True)
         x2 = x2 / np.linalg.norm(x2, ord=2, axis=1, keepdims=True)
-        alpha = 0.05
         dists = alpha * np.exp(-(r1 @ r2.T)) + (1 - alpha) * np.exp(-(x1 @ x2.T))
 
     return dists

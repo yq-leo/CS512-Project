@@ -94,7 +94,7 @@ if __name__ == '__main__':
             # testing
             out1_np = out1.detach().cpu().numpy()
             out2_np = out2.detach().cpu().numpy()
-            dissimilarity = compute_distance_matrix(out1_np, out2_np, dist_type=args.dist_type, use_attr=args.use_attr, x1=x1, x2=x2)
+            dissimilarity = compute_distance_matrix(out1_np, out2_np, alpha=args.alpha, dist_type=args.dist_type, use_attr=args.use_attr, x1=x1, x2=x2)
             hits, mrr = compute_metrics(dissimilarity, test_pairs)
             end = time.time()
             print(f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}, Time: {end - start:.2f}s')
