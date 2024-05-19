@@ -190,6 +190,32 @@ class PGNN(torch.nn.Module):
         return x1_position, x2_position
 
 
+class BRIGHT_A(torch.nn.Module):
+    def __init__(self, rwr_dim, feat_dim, output_dim, num_layers=1, **kwargs):
+        super(BRIGHT_A, self).__init__()
+        self.lin_rwr = torch.nn.Linear(rwr_dim, output_dim)
+        self.gcn = GCN(feat_dim, output_dim, num_layers)
+        self.combine = torch.nn.Linear(output_dim * 2, output_dim)
+
+    def forward(self, G1_data, G2_data, rwr_emb1, rwr_emb2):
+        pos_emb1 = self.lin_rwr(rwr_emb1)
+        pos_emb2 = self.lin_rwr(rwr_emb2)
+        x1, x2 = self.gcn(G1_data, G2_data)
+
+        pos_emb1 = F.normalize(pos_emb1, p=2, dim=1)
+        pos_emb2 = F.normalize(pos_emb2, p=2, dim=1)
+        x1 = F.normalize(x1, p=2, dim=1)
+        x2 = F.normalize(x2, p=2, dim=1)
+
+        emb1 = self.combine(torch.cat((pos_emb1, x1), dim=1))
+        emb2 = self.combine(torch.cat((pos_emb2, x2), dim=1))
+
+        emb1 = F.normalize(emb1, p=2, dim=1)
+        emb2 = F.normalize(emb2, p=2, dim=1)
+
+        return emb1, emb2
+
+
 class GCN(torch.nn.Module):
     def __init__(self, input_dim, output_dim, num_layers=1, **kwargs):
         super(GCN, self).__init__()

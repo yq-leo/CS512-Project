@@ -26,14 +26,14 @@ def compute_distance_matrix(embedding1, embedding2, dist_type='l1', use_attr=Fal
         dists = 1 - r1 @ r2.T
         # dists = scipy.spatial.distance.cdist(embedding1, embedding2, metric='cosine')
 
-    if use_attr:
-        assert x1 is not None and x2 is not None, 'Node attributes are not provided'
-        r1 = embedding1 / np.linalg.norm(embedding1, ord=2, axis=1, keepdims=True)
-        r2 = embedding2 / np.linalg.norm(embedding2, ord=2, axis=1, keepdims=True)
-        x1 = x1 / np.linalg.norm(x1, ord=2, axis=1, keepdims=True)
-        x2 = x2 / np.linalg.norm(x2, ord=2, axis=1, keepdims=True)
-        alpha = 0.05
-        dists = alpha * np.exp(-(r1 @ r2.T)) + (1 - alpha) * np.exp(-(x1 @ x2.T))
+    # if use_attr:
+    #     assert x1 is not None and x2 is not None, 'Node attributes are not provided'
+    #     r1 = embedding1 / np.linalg.norm(embedding1, ord=2, axis=1, keepdims=True)
+    #     r2 = embedding2 / np.linalg.norm(embedding2, ord=2, axis=1, keepdims=True)
+    #     x1 = x1 / np.linalg.norm(x1, ord=2, axis=1, keepdims=True)
+    #     x2 = x2 / np.linalg.norm(x2, ord=2, axis=1, keepdims=True)
+    #     alpha = 0.05
+    #     dists = alpha * np.exp(-(r1 @ r2.T)) + (1 - alpha) * np.exp(-(x1 @ x2.T))
 
     return dists
 

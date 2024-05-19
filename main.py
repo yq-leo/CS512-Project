@@ -1,3 +1,4 @@
+import torch
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.tensorboard import SummaryWriter
 from collections import defaultdict
@@ -16,17 +17,17 @@ if __name__ == '__main__':
     elif args.dataset == 'foursquare-twitter' or args.dataset == 'phone-email':
         assert args.use_attr is False, f'{args.dataset} does not have node attributes'
 
+    assert args.use_attr and args.use_gcn, 'use_attr and use_gcn must be True when using BRIGHT-A'
+
     # load data and build networkx graphs
     print("Loading data...")
     edge_index1, edge_index2, x1, x2, anchor_links, test_pairs = load_data(f"datasets/{args.dataset}", args.ratio, args.use_attr)
     G1, G2 = build_nx_graph(edge_index1, anchor_links[:, 0], x1), build_nx_graph(edge_index2, anchor_links[:, 0], x2)
-    if args.use_gcn:
-        assert args.use_attr, 'use_attr must be True when using gcn'
-        gcn_output = np.load(f'gcn_out/{args.dataset}_gcn_results_{args.num_gcn_layers}_layers.npz')
-        x1, x2 = gcn_output['x1'], gcn_output['x2']
 
     # compute distance metric scores (e.g. random walk with restart (rwr))
     dists_score1, dists_score2 = get_distance_matrix(G1, G2, anchor_links, args.dataset, args.ratio, args.distance)
+    rwr_emb1 = torch.from_numpy(dists_score1).float()
+    rwr_emb2 = torch.from_numpy(dists_score2).float()
 
     # device setting
     assert torch.cuda.is_available() or args.device == 'cpu', 'CUDA is not available'
@@ -34,23 +35,15 @@ if __name__ == '__main__':
 
     # build PyG Data objects
     anchor1, anchor2 = anchor_links[:, 0], anchor_links[:, 1]
-    G1_data = build_tg_graph(G1.number_of_nodes(), edge_index1, G1.x, anchor1, dists_score1).to(device)
-    G2_data = build_tg_graph(G2.number_of_nodes(), edge_index2, G2.x, anchor2, dists_score2).to(device)
+    G1_data = build_tg_graph(G1.number_of_nodes(), edge_index1, x1, anchor1, dists_score1).to(device)
+    G2_data = build_tg_graph(G2.number_of_nodes(), edge_index2, x2, anchor2, dists_score2).to(device)
 
     # model setting
     model_settings = {
-        "input_dim": G1_data.x.shape[1],
-        "feature_dim": args.feat_dim,
-        "anchor_dim": args.c * int(np.log2(anchor_links.shape[0])) ** 2 if args.random else anchor_links.shape[0],
-        "hidden_dim": args.hidden_dim,
-        "output_dim": args.out_dim,
-        "feature_pre": args.feature_pre,
-        "num_layers": args.num_layers,
-        "use_dropout": args.use_dropout,
-        "dist_trainable": args.dist_trainable,
-        "use_hidden": args.use_hidden,
-        "mcf_type": args.mcf_type,
-        "agg_type": args.agg_type
+        'rwr_dim': dists_score1.shape[1],
+        'feat_dim': x1.shape[1],
+        'output_dim': args.out_dim,
+        'num_layers': args.num_gcn_layers
     }
     print(f"Model settings: {model_settings}")
 
@@ -64,7 +57,7 @@ if __name__ == '__main__':
 
     for run in range(args.runs):
 
-        model = PGNN(**model_settings).to(device)
+        model = BRIGHT_A(**model_settings).to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         criterion = globals()[f'{args.loss_func}Loss'](G1_data=G1_data,
                                                        G2_data=G2_data,
@@ -85,7 +78,7 @@ if __name__ == '__main__':
             model.train()
             start = time.time()
             optimizer.zero_grad()
-            out1, out2 = model(G1_data, G2_data)
+            out1, out2 = model(G1_data, G2_data, rwr_emb1, rwr_emb2)
             loss = criterion(out1=out1, out2=out2, anchor1=anchor1, anchor2=anchor2)
             loss.backward()
             optimizer.step()
