@@ -151,7 +151,8 @@ class PGNN(torch.nn.Module):
             self.conv_first = PGNNLayer(input_dim, anchor_dim, hidden_dim, **kwargs)
 
         if num_layers > 1:
-            self.conv_hidden = nn.ModuleList([PGNNLayer(hidden_dim, anchor_dim, hidden_dim, **kwargs)] * (num_layers - 2))
+            self.conv_hidden = nn.ModuleList(
+                [PGNNLayer(hidden_dim, anchor_dim, hidden_dim, **kwargs)] * (num_layers - 2))
             self.conv_out = PGNNLayer(hidden_dim, anchor_dim, output_dim, **kwargs)
 
     def forward(self, G1_data, G2_data):
@@ -162,7 +163,8 @@ class PGNN(torch.nn.Module):
         if self.feature_pre:
             x1 = self.linear_pre(x1)
             x2 = self.linear_pre(x2)
-        x1_position, x1, x2_position, x2 = self.conv_first(x1, x2, dists_max_1, dists_max_2, dists_argmax_1, dists_argmax_2)
+        x1_position, x1, x2_position, x2 = self.conv_first(x1, x2, dists_max_1, dists_max_2, dists_argmax_1,
+                                                           dists_argmax_2)
         x1, x2 = F.sigmoid(x1), F.sigmoid(x2)
 
         if self.num_layers == 1:
@@ -174,14 +176,15 @@ class PGNN(torch.nn.Module):
             x1 = F.dropout(x1, training=self.training)
             x2 = F.dropout(x2, training=self.training)
 
-        for i in range(self.num_layers-2):
+        for i in range(self.num_layers - 2):
             _, x1, _, x2 = self.conv_hidden[i](x1, x2, dists_max_1, dists_max_2, dists_argmax_1, dists_argmax_2)
             x1, x2 = F.sigmoid(x1), F.sigmoid(x2)
             if self.use_dropout:
                 x1 = F.dropout(x1, training=self.training)
                 x2 = F.dropout(x2, training=self.training)
 
-        x1_position, x1, x2_position, x2 = self.conv_out(x1, x2, dists_max_1, dists_max_2, dists_argmax_1, dists_argmax_2)
+        x1_position, x1, x2_position, x2 = self.conv_out(x1, x2, dists_max_1, dists_max_2, dists_argmax_1,
+                                                         dists_argmax_2)
         x1_position = F.normalize(x1_position, p=2, dim=-1)
         x2_position = F.normalize(x2_position, p=2, dim=-1)
         return x1_position, x2_position
@@ -275,11 +278,13 @@ class RankingLoss(torch.nn.Module):
 
         A = self.compute_dist(anchor_embeddings_1, anchor_embeddings_2)
         D = A + self.margin
-        B1 = -self.compute_dist(anchor_embeddings_1.unsqueeze(1).repeat(1, self.k, 1).view(-1, anchor_embeddings_1.shape[-1]),
-                                neg_embeddings_1.view(-1, neg_embeddings_1.shape[-1]))
+        B1 = -self.compute_dist(
+            anchor_embeddings_1.unsqueeze(1).repeat(1, self.k, 1).view(-1, anchor_embeddings_1.shape[-1]),
+            neg_embeddings_1.view(-1, neg_embeddings_1.shape[-1]))
         L1 = torch.sum(F.relu(D.unsqueeze(-1) + B1.view(-1, self.k)))
-        B2 = -self.compute_dist(anchor_embeddings_2.unsqueeze(1).repeat(1, self.k, 1).view(-1, anchor_embeddings_2.shape[-1]),
-                                neg_embeddings_2.view(-1, neg_embeddings_2.shape[-1]))
+        B2 = -self.compute_dist(
+            anchor_embeddings_2.unsqueeze(1).repeat(1, self.k, 1).view(-1, anchor_embeddings_2.shape[-1]),
+            neg_embeddings_2.view(-1, neg_embeddings_2.shape[-1]))
         L2 = torch.sum(F.relu(D.unsqueeze(-1) + B2.view(-1, self.k)))
 
         return (L1 + L2) / (anchor1.shape[0] * self.k)
@@ -290,11 +295,13 @@ class RankingLoss(torch.nn.Module):
         if self.dist_type == 'l1':
             return torch.sum(torch.abs(embedding1 - embedding2), 1)
         elif self.dist_type == 'cosine':
-            return 1 - torch.sum(embedding1 * embedding2, 1) / (torch.norm(embedding1, p=2, dim=1) * torch.norm(embedding2, p=2, dim=1))
+            return 1 - torch.sum(embedding1 * embedding2, 1) / (
+                        torch.norm(embedding1, p=2, dim=1) * torch.norm(embedding2, p=2, dim=1))
 
 
 class ConsistencyLoss(torch.nn.Module):
-    def __init__(self, G1_data, G2_data, device='cpu', lambda_edge=1e-3, lambda_neigh=4e-2, lambda_align=1, margin=10, **kwargs):
+    def __init__(self, G1_data, G2_data, device='cpu', lambda_edge=1e-3, lambda_neigh=4e-2, lambda_align=1, margin=10,
+                 **kwargs):
         super(ConsistencyLoss, self).__init__()
 
         self.lambda_edge = lambda_edge
@@ -328,7 +335,8 @@ class ConsistencyLoss(torch.nn.Module):
         n1, n2 = similarity.shape
         vec_u = torch.ones(n1, 1).to(self.device) / n1
         vec_v = torch.ones(n2, 1).to(self.device) / n2
-        L = (self.C1 ** 2) @ vec_u @ (vec_v * n2).T + (vec_u * n1) @ vec_v.T @ (self.C2 ** 2) - 2 * self.C1 @ similarity @ self.C2.T
+        L = (self.C1 ** 2) @ vec_u @ (vec_v * n2).T + (vec_u * n1) @ vec_v.T @ (
+                    self.C2 ** 2) - 2 * self.C1 @ similarity @ self.C2.T
         edge_loss = torch.sum(L * similarity) / (n1 * n2)
         return edge_loss
 
@@ -489,11 +497,13 @@ class WeightedRankingLoss(torch.nn.Module):
 
         A = self.compute_dist(anchor_embeddings_1, anchor_embeddings_2)
         D = A + self.margin
-        B1 = -self.compute_dist(anchor_embeddings_1.unsqueeze(1).repeat(1, self.k, 1).view(-1, anchor_embeddings_1.shape[-1]),
-                                neg_embeddings_1.view(-1, neg_embeddings_1.shape[-1]))
+        B1 = -self.compute_dist(
+            anchor_embeddings_1.unsqueeze(1).repeat(1, self.k, 1).view(-1, anchor_embeddings_1.shape[-1]),
+            neg_embeddings_1.view(-1, neg_embeddings_1.shape[-1]))
         L1 = torch.sum(F.relu(D.unsqueeze(-1) + B1.view(-1, self.k)))
-        B2 = -self.compute_dist(anchor_embeddings_2.unsqueeze(1).repeat(1, self.k, 1).view(-1, anchor_embeddings_2.shape[-1]),
-                                neg_embeddings_2.view(-1, neg_embeddings_2.shape[-1]))
+        B2 = -self.compute_dist(
+            anchor_embeddings_2.unsqueeze(1).repeat(1, self.k, 1).view(-1, anchor_embeddings_2.shape[-1]),
+            neg_embeddings_2.view(-1, neg_embeddings_2.shape[-1]))
         L2 = torch.sum(F.relu(D.unsqueeze(-1) + B2.view(-1, self.k)))
 
         return (L1 + L2) / (anchor1.shape[0] * self.k)
@@ -504,7 +514,8 @@ class WeightedRankingLoss(torch.nn.Module):
         if self.dist_type == 'l1':
             return torch.sum(torch.abs(embedding1 - embedding2), 1)
         elif self.dist_type == 'cosine':
-            return 1 - torch.sum(embedding1 * embedding2, 1) / (torch.norm(embedding1, p=2, dim=1) * torch.norm(embedding2, p=2, dim=1))
+            return 1 - torch.sum(embedding1 * embedding2, 1) / (
+                        torch.norm(embedding1, p=2, dim=1) * torch.norm(embedding2, p=2, dim=1))
 
     @staticmethod
     def pinv_diag(vec):
@@ -554,7 +565,8 @@ class WeightedRegularizedRankingLoss(WeightedRankingLoss):
         n1, n2 = similarity.shape
         vec_u = torch.ones(n1, 1).to(self.device) / n1
         vec_v = torch.ones(n2, 1).to(self.device) / n2
-        L = (self.C1 ** 2) @ vec_u @ (vec_v * n2).T + (vec_u * n1) @ vec_v.T @ (self.C2 ** 2) - 2 * self.C1 @ similarity @ self.C2.T
+        L = (self.C1 ** 2) @ vec_u @ (vec_v * n2).T + (vec_u * n1) @ vec_v.T @ (
+                    self.C2 ** 2) - 2 * self.C1 @ similarity @ self.C2.T
         edge_loss = torch.sum(L * similarity) / (n1 * n2)
         return edge_loss
 

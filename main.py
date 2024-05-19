@@ -20,6 +20,10 @@ if __name__ == '__main__':
     print("Loading data...")
     edge_index1, edge_index2, x1, x2, anchor_links, test_pairs = load_data(f"datasets/{args.dataset}", args.ratio, args.use_attr)
     G1, G2 = build_nx_graph(edge_index1, anchor_links[:, 0], x1), build_nx_graph(edge_index2, anchor_links[:, 0], x2)
+    if args.use_gcn:
+        assert args.use_attr, 'use_attr must be True when using gcn'
+        gcn_output = np.load(f'gcn_out/{args.dataset}_gcn_results_{args.num_gcn_layers}_layers.npz')
+        x1, x2 = gcn_output['x1'], gcn_output['x2']
 
     # compute distance metric scores (e.g. random walk with restart (rwr))
     dists_score1, dists_score2 = get_distance_matrix(G1, G2, anchor_links, args.dataset, args.ratio, args.distance)
