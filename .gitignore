@@ -7,3 +7,4 @@ logs/
 archive/
 gcn_out/
 plots/
+.ipynb_checkpoints/
