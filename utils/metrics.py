@@ -39,7 +39,7 @@ def compute_ot_cost_matrix(G1_data, G2_data, alpha=0.1):
     r1, r2 = F.normalize(r1, p=2, dim=1), F.normalize(r2, p=2, dim=1)
     x1, x2 = F.normalize(x1, p=2, dim=1), F.normalize(x2, p=2, dim=1)
 
-    cost_node = alpha * torch.exp(-(r1 @ r2.T)) + torch.exp(-(x1 @ x2.T))
+    cost_node = alpha * torch.exp(-(r1 @ r2.T)) + (1 - alpha) * torch.exp(-(x1 @ x2.T))
 
     return cost_node
 

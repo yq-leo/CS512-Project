@@ -1,10 +1,14 @@
 **/.DS_Store
 .idea/
 __pycache__/
+
 datasets/rwr/
 datasets/otcost/
+datasets/rwr_parrot/
+
 logs/
 archive/
 gcn_out/
 plots/
 .ipynb_checkpoints/
+
