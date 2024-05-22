@@ -58,8 +58,8 @@ def compute_metrics(distances1, distances2, test_pairs, hit_top_ks=(1, 5, 10, 30
 
     hits = {}
 
-    ranks1 = np.argsort(distances1, axis=1)
-    ranks2 = np.argsort(distances2, axis=1)
+    ranks1 = torch.argsort(torch.from_numpy(distances1), dim=1).numpy()
+    ranks2 = torch.argsort(torch.from_numpy(distances2), dim=1).numpy()
 
     signal1_hit = ranks1[:, :hit_top_ks[-1]] == np.expand_dims(test_pairs[:, 1], -1)
     signal2_hit = ranks2[:, :hit_top_ks[-1]] == np.expand_dims(test_pairs[:, 0], -1)
