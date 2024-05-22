@@ -29,6 +29,7 @@ def compute_ot_cost_matrix(G1_data, G2_data, alpha=0.1):
     Compute optimal transport cost matrix between two sets of embeddings
     :param G1_data: PyG Data object for graph 1
     :param G2_data: PyG Data object for graph 2
+    :param alpha: trade-off parameter
     :return: cost_rwr: cost matrix
     """
 
@@ -38,7 +39,7 @@ def compute_ot_cost_matrix(G1_data, G2_data, alpha=0.1):
     r1, r2 = F.normalize(r1, p=2, dim=1), F.normalize(r2, p=2, dim=1)
     x1, x2 = F.normalize(x1, p=2, dim=1), F.normalize(x2, p=2, dim=1)
 
-    cost_node = alpha * torch.exp(-(r1 @ r2.T)) + (1-alpha) * torch.exp(-(x1 @ x2.T))
+    cost_node = alpha * torch.exp(-(r1 @ r2.T)) + torch.exp(-(x1 @ x2.T))
 
     return cost_node
 

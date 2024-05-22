@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
     # compute OT cost
     print("Computing OT cost...")
-    for alpha in [0, 0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+    for alpha in [0.1, 0.2, 0.3, 0.4, 0.5]:
         cost_rwr = compute_ot_cost_matrix(G1_data, G2_data, alpha).cpu().numpy()
         hits, mrr = compute_metrics(cost_rwr[test_pairs[:, 0]], cost_rwr.T[test_pairs[:, 1]], test_pairs)
         print(f'alpha={alpha}-{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
