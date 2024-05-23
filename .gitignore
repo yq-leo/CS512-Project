@@ -5,6 +5,7 @@ __pycache__/
 datasets/rwr/
 datasets/otcost/
 datasets/rwr_parrot/
+datasets/org/
 
 logs/
 archive/
