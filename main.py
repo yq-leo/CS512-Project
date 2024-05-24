@@ -19,8 +19,9 @@ if __name__ == '__main__':
 
     # compute distance metric scores (e.g. random walk with restart (rwr))
     dists_score1, dists_score2 = get_distance_matrix(G1, G2, anchor_links, args.dataset, args.ratio, args.distance)
-    # parrot = np.load(f'datasets/rwr_parrot/rwr_cost_{args.dataset}.npz')
-    # dists_score1, dists_score2 = parrot['rwr1'], parrot['rwr2']
+    if args.use_parrot:
+        parrot = np.load(f'datasets/rwr_parrot/rwr_cost_{args.dataset}.npz')
+        dists_score1, dists_score2 = parrot['rwr1'], parrot['rwr2']
 
     # device setting
     assert torch.cuda.is_available() or args.device == 'cpu', 'CUDA is not available'
@@ -38,6 +39,8 @@ if __name__ == '__main__':
     print("Computing OT cost...")
     for alpha in [0.1, 0.2, 0.3, 0.4, 0.5]:
         cost_rwr = compute_ot_cost_matrix(G1_data, G2_data, alpha).cpu().numpy()
-        # cost_rwr = parrot['cross_rwr']
+        if args.use_cross_rwr:
+            assert args.use_parrot, 'use_parrot must be True to use cross_rwr'
+            cost_rwr = parrot['cross_rwr']
         hits, mrr = compute_metrics(cost_rwr[test_pairs[:, 0]], cost_rwr.T[test_pairs[:, 1]], test_pairs)
         print(f'alpha={alpha}-{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')

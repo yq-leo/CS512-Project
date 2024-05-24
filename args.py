@@ -48,5 +48,11 @@ def make_args():
     parser.add_argument('--use_gcn', dest='use_gcn', default=False, action='store_true',
                         help='use GCN for ablation study')
     parser.add_argument('--num_gcn_layers', dest='num_gcn_layers', type=int, default=1, help='number of GCN layers')
+
+    parser.add_argument('--use_parrot', dest='use_parrot', default=False, action='store_true',
+                        help='use parrot rwr')
+    parser.add_argument('--use_cross_rwr', dest='use_cross_rwr', default=False, action='store_true',
+                        help='use cross rwr')
+
     args = parser.parse_args()
     return args
