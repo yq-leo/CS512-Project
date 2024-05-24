@@ -1,3 +1,5 @@
+from torch.utils.tensorboard import SummaryWriter
+
 from utils import *
 from args import *
 from model import *
@@ -35,12 +37,26 @@ if __name__ == '__main__':
         G1_data.x = torch.tensor(gcn_output['x1'], dtype=torch.float).to(device)
         G2_data.x = torch.tensor(gcn_output['x2'], dtype=torch.float).to(device)
 
+    exp_name = "pure_ot"
+    if not os.path.exists('exp_logs'):
+        os.makedirs('exp_logs')
+    if not os.path.exists(f"exp_logs/{exp_name}"):
+        os.makedirs(f"exp_logs/{exp_name}")
+
+    method = 'parrot' if args.use_parrot else 'pgna'
+    rwr = 'cross' if args.use_cross_rwr else 'separate'
+    writer = SummaryWriter(f"exp_logs/{exp_name}/{args.dataset}_{method}_{rwr}")
+
     # compute OT cost
     print("Computing OT cost...")
-    for alpha in [0.1, 0.2, 0.3, 0.4, 0.5]:
+    for alpha in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]:
         cost_rwr = compute_ot_cost_matrix(G1_data, G2_data, alpha).cpu().numpy()
         if args.use_cross_rwr:
             assert args.use_parrot, 'use_parrot must be True to use cross_rwr'
             cost_rwr = parrot['cross_rwr']
         hits, mrr = compute_metrics(cost_rwr[test_pairs[:, 0]], cost_rwr.T[test_pairs[:, 1]], test_pairs)
         print(f'alpha={alpha}-{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
+
+        writer.add_scalar('MRR', mrr, int(10 * alpha))
+        for key, value in hits.items():
+            writer.add_scalar(f'Hits/Hits@{key}', value, int(10 * alpha))

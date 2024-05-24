@@ -8,6 +8,7 @@ datasets/rwr_parrot/
 datasets/org/
 
 logs/
+exp_logs/
 archive/
 gcn_out/
 plots/
