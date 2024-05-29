@@ -12,3 +12,5 @@ archive/
 gcn_out/
 plots/
 **.ipynb_checkpoints
+
+exp_logs/

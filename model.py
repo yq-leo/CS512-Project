@@ -40,12 +40,6 @@ class PGNNLayer(torch.nn.Module):
         self.linear_final = nn.Linear(self.anchor_dim, self.output_dim)
         self.act = nn.ReLU()
 
-        # for m in self.modules():
-        #     if isinstance(m, nn.Linear):
-        #         m.weight.data = nn.init.xavier_uniform_(m.weight.data, gain=nn.init.calculate_gain('relu'))
-        #         if m.bias is not None:
-        #             m.bias.data = nn.init.constant_(m.bias.data, 0.0)
-
     def forward(self, x1, x2, dists_max_1, dists_max_2, dists_argmax_1, dists_argmax_2):
         if self.dist_trainable:
             dists_max_1 = self.dist_compute(dists_max_1.unsqueeze(-1)).squeeze()
