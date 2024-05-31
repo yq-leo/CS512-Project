@@ -1,6 +1,8 @@
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.tensorboard import SummaryWriter
 from collections import defaultdict
+from scipy.special import softmax
+import csv
 import time
 
 from utils import *
@@ -58,6 +60,11 @@ if __name__ == '__main__':
     if not os.path.exists('logs'):
         os.makedirs('logs')
     writer = SummaryWriter(log_path(args.dataset, args.use_attr))
+    if not os.path.exists(f"exp_logs/entropy"):
+        os.makedirs(f"exp_logs/entropy")
+    with open(f"exp_logs/entropy/{args.dataset}.csv", mode='w', newline='') as file:
+        csv_writer = csv.writer(file)
+        csv_writer.writerow(["epoch", "row_min", "row_max", "row_mean", "row_std", "col_min", "col_max", "col_mean", "col_std"])
 
     max_hits_list = defaultdict(list)
     max_mrr_list = []
@@ -95,6 +102,19 @@ if __name__ == '__main__':
             out1_np = out1.detach().cpu().numpy()
             out2_np = out2.detach().cpu().numpy()
             dissimilarity = compute_distance_matrix(out1_np, out2_np, alpha=args.alpha, dist_type=args.dist_type, use_attr=args.use_attr, x1=x1, x2=x2)
+
+            dis1 = dissimilarity / np.sum(dissimilarity, axis=1, keepdims=True)
+            dis2 = dissimilarity / np.sum(dissimilarity, axis=0, keepdims=True)
+            entropy1 = -np.sum(dis1 * np.log(dis1), axis=1)
+            entropy2 = -np.sum(dis2 * np.log(dis2), axis=1)
+
+            row_min, row_max, row_mean, row_std = np.min(entropy1), np.max(entropy1), np.mean(entropy1), np.std(entropy1)
+            col_min, col_max, col_mean, col_std = np.min(entropy2), np.max(entropy2), np.mean(entropy2), np.std(entropy2)
+            print(f'row_entropy: {row_mean:.4f}, col_entropy: {col_mean:.4f}', end=" ")
+            with open(f"exp_logs/entropy/{args.dataset}.csv", mode='a', newline='') as file:
+                csv_writer = csv.writer(file)
+                csv_writer.writerow([epoch, row_min, row_max, row_mean, row_std, col_min, col_max, col_mean, col_std])
+
             hits, mrr = compute_metrics(dissimilarity, test_pairs)
             end = time.time()
             print(f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}, Time: {end - start:.2f}s')

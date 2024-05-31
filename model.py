@@ -582,3 +582,28 @@ class WeightedRegularizedRankingLoss(WeightedRankingLoss):
             if inv[i] == torch.inf:
                 inv[i] = 0
         return torch.diag(inv)
+
+
+class ConstrainedRegularizedRankingLoss(RegularizedRankingLoss):
+    def __init__(self, G1_data, G2_data, k, margin, dist_type='l1', lambda_rank=0.5,
+                 lambda_edge=1e-3, lambda_neigh=10, lambda_align=2, device='cpu', eps1=0, eps2=1e-4, **kwargs):
+        super(ConstrainedRegularizedRankingLoss, self).__init__(G1_data, G2_data, k, margin, dist_type, lambda_rank,
+                                                                lambda_edge, lambda_neigh, lambda_align, device)
+        self.eps1 = eps1
+        self.eps2 = eps2
+
+    def forward(self, out1, out2, anchor1, anchor2):
+        rr_loss = super(ConstrainedRegularizedRankingLoss, self).forward(out1, out2, anchor1, anchor2)
+
+        similarity = 1 - torch.exp(-(out1 @ out2.T))
+        row_norm_sim = similarity / torch.sum(similarity, dim=1, keepdim=True)
+        # col_norm_sim = F.softmax(similarity, dim=0)
+        col_loss = torch.sum(torch.abs(row_norm_sim.sum(0) - 1))
+        # row_loss = torch.sum(torch.abs(col_norm_sim.sum(1) - 1))
+
+        row_entropy = -torch.sum(row_norm_sim * torch.log(row_norm_sim))
+        # col_entropy = -torch.sum(col_norm_sim * torch.log(col_norm_sim))
+
+        return rr_loss + self.eps1 * col_loss
+
+

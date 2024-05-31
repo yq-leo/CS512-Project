@@ -63,7 +63,7 @@ def compute_metrics(dissimilarity, test_pairs, hit_top_ks=(1, 5, 10, 30, 50, 100
     upperbound1 = len(set(ranks1[:, 0])) / num_test_pairs
     upperbound2 = len(set(ranks2[:, 0])) / num_test_pairs
     upperbound = max(upperbound1, upperbound2)
-    print(f'upperbound: {upperbound:.4f}', end=' ')
+    print(f'hits1_upperbound: {upperbound:.4f}', end=' ')
 
     signal1_hit = ranks1[:, :hit_top_ks[-1]] == np.expand_dims(test_pairs[:, 1], -1)
     signal2_hit = ranks2[:, :hit_top_ks[-1]] == np.expand_dims(test_pairs[:, 0], -1)
