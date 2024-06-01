@@ -14,3 +14,4 @@ plots/
 **.ipynb_checkpoints
 
 exp_logs/
+outputs/
