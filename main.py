@@ -98,6 +98,10 @@ if __name__ == '__main__':
             hits, mrr = compute_metrics(dissimilarity, test_pairs)
             end = time.time()
             print(f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}, Time: {end - start:.2f}s')
+
+            if mrr > max_mrr:
+                np.savez(f"outputs/pgna/pgna_{args.dataset}_embeddings.npz", out1=out1_np, out2=out2_np)
+
             max_mrr = max(max_mrr, mrr)
             for key, value in hits.items():
                 max_hits[key] = max(max_hits[key], value)
